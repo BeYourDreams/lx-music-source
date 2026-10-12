@@ -5,8 +5,9 @@
  * ------------------------------------------------------------------
  * 覆盖两块最容易在改动中被悄悄破坏、且一旦破坏就「用户听不出来」或「用户听得出但说不清」的逻辑：
  *
- *   1. 歌手匹配（含中英文/繁简体别名）—— 放宽了不能误收，放松不够会误拒
+*   1. 歌手匹配（含中英文/繁简体别名）—— 放宽了不能误收，放松不够会误拒
  *   2. 试听片段体积闸门 —— 阈值既要能拦 30 秒试听，又不能误杀真实文件
+ *   3. 降级价值分类 + 主机熔断 —— 决定「还要不要再等一轮」与「还该不该再打这台机器」
  *
  * 用法：node tools/test_logic.js
  * 退出码：0 = 全通过；1 = 有失败
@@ -22,7 +23,7 @@ const vm = require('vm')
 const ROOT = path.resolve(__dirname, '..')
 const SCRIPT = process.argv[2] || path.join(ROOT, 'aggregator/latest.js')
 const src = fs.readFileSync(SCRIPT, 'utf8')
-  + '\n;globalThis.__t = { singerMatch, normSingers, allSingerKeys, isSameSong, MIN_BYTES_PER_SEC, DURATION_TOLERANCE };'
++ '\n;globalThis.__t = { singerMatch, normSingers, allSingerKeys, isSameSong, MIN_BYTES_PER_SEC, DURATION_TOLERANCE, DEGRADE_WORTHY, BREAK_THRESHOLD, BREAK_TTL, hostOf, isTripped, noteFail, noteOk };'
 
 const sandbox = {
   console,
@@ -91,6 +92,34 @@ console.log('\n[3] 试听片段体积闸门（阈值 = 理论下限的 35%）')
   check('128k 全曲（3.9MB / 255s）放行', blocked(255, '128k', 3.9), false)
   check('flac 全曲（28MB / 255s）放行', blocked(255, 'flac', 28), false)
   check('低码率下也不误杀（2.2MB / 255s / 128k）', blocked(255, '128k', 2.2), false)
+}
+
+console.log('\n[4] 降级价值分类（换音质到底有没有可能救回来）')
+{
+  const w = (reason) => T.DEGRADE_WORTHY.test(reason)
+  // 只有网关自己用 JSON 说出来的「这一档没有」才值得换 level
+  check('网关无此歌 → 值得降级', w('网关无此歌'), true)
+  check('网关无版权 → 值得降级', w('网关无版权(歌曲未授权)'), true)
+  check('响应里没有可用的 URL → 值得降级', w('响应里没有可用的 URL'), true)
+  // 以下都与音质无关，降级只是把同样的失败重跑一遍（v1.3.7 卡 9s 的根因）
+  check('裸 HTTP 404（接口下线）→ 不降级', w('HTTP 404'), false)
+  check('网络失败 → 不降级', w('网络失败(timeout)'), false)
+  check('上游故障 5xx → 不降级', w('上游故障(HTTP 502)'), false)
+  check('预检不可播 → 不降级', w('预检不可播(HTTP 404)'), false)
+}
+
+console.log('\n[5] 主机熔断（连续传输层失败后不再空等超时）')
+{
+  const host = T.hostOf('https://musicapi.haitangw.net/music/kw.php?type=mp3&id=1')
+check('从 URL 取出 host', host, 'musicapi.haitangw.net')
+  check('未失败时未熔断', T.isTripped(host), false)
+  T.noteFail(host)
+  check(`失败 1 次还没到阈值 ${T.BREAK_THRESHOLD}`, T.isTripped(host), false)
+  T.noteFail(host)
+  check('连续失败 2 次后熔断', T.isTripped(host), true)
+  check('别的 host 不受影响', T.isTripped('yinyue.haitangw.net'), false)
+  T.noteOk(host)
+  check('一旦成功立刻恢复', T.isTripped(host), false)
 }
 
 console.log(failed === 0 ? '\n✅ 全部通过' : `\n❌ ${failed} 个用例失败`)

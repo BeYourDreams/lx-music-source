@@ -1,7 +1,7 @@
 /*!
  * @name 聚合音源
- * @description v1.3.7 修好日志里版本号双 v（vv1.3.6）的显示：已是最新/发现新版本都只带一个 v
- * @version v1.3.7
+* @description v1.3.8 修「降级重试要等很久」：搜索结果跨音质复用、传输层失败不再空降级、主机熔断、超时收紧
+ * @version v1.3.8
  * @author pdone
  * @homepage https://github.com/qq458249269/lx-music-source
  * @netease MUSIC_U=;
@@ -42,19 +42,29 @@
 
 /* ============================ 配置 ============================ */
 
-/** 单次请求超时 */
-const REQ_TIMEOUT = 5000
+/**
+ * 单次请求超时。
+ * 实测所有合法响应都在 3.3s 以内（QQ 搜索最慢 1.8~3.3s，网易云 0.2~1.3s，
+ * musicapi/kw 1.3s），原先的 5s 有两秒是纯浪费 —— 而超时是**乘以轮次**的：
+ * 一次「等满 5s」在 4 轮降级里就是 20s，比 LX 的 20s 硬超时还长。
+ */
+const REQ_TIMEOUT = 3000
 /** 搜索接口超时（比网关短，搜索挂了就没必要等） */
-const SEARCH_TIMEOUT = 3500
+const SEARCH_TIMEOUT = 3000
 /**
  * 主流程总预算。
  * LX 主进程对每个 action 有 20000ms 硬超时，一旦撞上，主进程会直接把
  * action 判为失败并弹出通用的「换源失败，请尝试手动在搜索页指定其他来源…」。
  * 那句提示不含任何原因，无法定位。v1.3.0 用 17000ms，在网络稍慢时会
  * 连带 LX 自身开销一起撞线，表现为**全平台一律换源失败**。
- * 这里压到 12000ms：留足 8s 余量，我们自己抛出的错误才能带回真实 reason。
+* 这里压到 8000ms：留足 12s 余量，我们自己抛出的错误才能带回真实 reason。
+ *
+ * v1.3.8 从 12000 进一步压到 8000：实测修复后单次失败尝试已在 2~3s 内收敛
+ * （见「失败原因与音质无关就不降级」），剩下能花满 8s 的只有「真的在慢慢下载」
+ * 的情况；而洛雪对「换源」的用户体感阈值远低于 20s，早失败还能让客户端
+ * 尽快换下一个源。
  */
-const TOTAL_BUDGET = 12000
+const TOTAL_BUDGET = 8000
 
 /* ======================= 自动检查更新 ======================= */
 
@@ -278,12 +288,68 @@ function enc(s) { return encodeURIComponent(String(s)) }
 /** 退避等待 */
 function sleep(ms) { return new Promise((r) => setTimeout(r, ms)) }
 
+/* ============================ 主机熔断 ============================ */
+
+/**
+ * 按主机做「连续传输层失败熔断」。
+ *
+ * 为什么需要：一台主机挂掉时（连接被丢包 / nginx 502），每次尝试都要**等满超时**
+ * 才判死。降级链一跑就是 4 轮 × 2~3 个网关 = 白等十几秒，用户只看到「一直不出声」。
+ * 实测把 127.0.0.1:9 这类黑洞端口连过去，20s 都不返回 —— 这正是不能死磕单机的理由。
+ *
+ * 只熔断**传输层失败**（网络错误 / 超时 / 5xx）：
+ *   - 404 / 无版权 / 无匹配 是「这一首（或这一档音质）拿不到」，换首歌立刻就好，
+ *     拿它去熔断整台主机，会让用户连着几首都有版权的歌都放不出来。
+ *   - 任一成功就立刻清零，主机恢复后下一首歌马上重新用上。
+ */
+const BREAK_TTL = 60000
+/** 连续失败多少次后熔断。2 次即熔断：单次失败还分不清抖动和宕机 */
+const BREAK_THRESHOLD = 2
+/** host → { n: 连续失败次数, until: 熔断到期时间戳 } */
+const HOST_BREAKER = new Map()
+
+function hostOf(url) {
+  const m = /^https?:\/\/([^/]+)/i.exec(String(url || ''))
+  return m ? m[1].toLowerCase() : ''
+}
+
+function isTripped(host) {
+  if (!host) return false
+  const rec = HOST_BREAKER.get(host)
+  // until === 0 表示「还没熔断过，只是失败计数不够」。
+  // 千万别把它当成已过期给删了 —— 每发一次请求都会先问一次 isTripped，
+  // 删掉就等于每次都把计数清零，熔断永远不会触发（v1.3.8 初版的 bug，单测抓出）。
+  if (!rec || !rec.until) return false
+  if (Date.now() > rec.until) { HOST_BREAKER.delete(host); return false }
+  return true
+}
+
+/** 传输层失败计数 +1，达到阈值就熔断一段时间 */
+function noteFail(host) {
+  if (!host) return
+  const rec = HOST_BREAKER.get(host) || { n: 0, until: 0 }
+  rec.n++
+  if (rec.n >= BREAK_THRESHOLD) {
+    rec.n = 0
+    rec.until = Date.now() + BREAK_TTL
+    dlog(`⛔ 熔断 ${host}：连续传输层失败，${BREAK_TTL / 1000}s 内不再请求`)
+  }
+  HOST_BREAKER.set(host, rec)
+}
+
+/** 成功即清零 */
+function noteOk(host) {
+  if (host) HOST_BREAKER.delete(host)
+}
+
 /**
  * 带超时的 GET。lx.request 是回调风格 cb(err, resp)，且不跟随重定向
  * —— 正好用来拿 3xx 的 Location。网络异常一律转成 statusCode 0，不抛。
  */
 function fetchUrl(url, timeout, extraHeaders) {
-  const ms = timeout || REQ_TIMEOUT
+  // `??` 而不是 `||`：预算恰好耗尽时算出来的是 0，
+  // 而 0 是 falsy —— 用 || 会悄悄回落到 5s，反而把 deadline 冲掉。
+  const ms = Number.isFinite(timeout) && timeout > 0 ? timeout : REQ_TIMEOUT
   return new Promise((resolve) => {
     let settled = false
     const finish = (v) => { if (settled) return; settled = true; clearTimeout(timer); resolve(v) }
@@ -483,9 +549,12 @@ function targetInfo(info) {
 }
 
 const SEARCH_API = {
-  wy: {
+wy: {
     name: '网易云',
-    url: (kw) => `https://music.163.com/api/search/get?csrf_token=&hlpretag=&hlposttag=&s=${enc(kw)}&type=1&offset=0&total=true&limit=8`,
+    // limit 必须给够：搜「晴天 周杰伦」前 8 条全是翻唱（深情版 / RyaVocal…），
+    // 原版排在 9 名之后 —— limit=8 时跨源对最热门的歌**必然**匹配失败，
+    // 于是每轮降级都白等一次搜索。翻到 20 条仍是同一个请求，耗时不变。
+    url: (kw) => `https://music.163.com/api/search/get?csrf_token=&hlpretag=&hlposttag=&s=${enc(kw)}&type=1&offset=0&total=true&limit=20`,
     headers: { Referer: 'https://music.163.com/', 'User-Agent': 'Mozilla/5.0' },
     parse: (j) => ((((j || {}).result || {}).songs) || []).map((s) => ({
       name: s.name,
@@ -494,9 +563,9 @@ const SEARCH_API = {
       id: String(s.id),
     })),
   },
-  tx: {
+tx: {
     name: 'QQ',
-    url: (kw) => `https://c.y.qq.com/soso/fcgi-bin/client_search_cp?w=${enc(kw)}&format=json&p=1&n=8`,
+    url: (kw) => `https://c.y.qq.com/soso/fcgi-bin/client_search_cp?w=${enc(kw)}&format=json&p=1&n=20`,
     headers: { Referer: 'https://y.qq.com/', 'User-Agent': 'Mozilla/5.0' },
     parse: (j) => ((((j || {}).data || {}).song || {}).list || []).map((s) => ({
       name: s.songname,
@@ -514,6 +583,9 @@ const SEARCH_API = {
 async function searchVerified(target, platform, deadline) {
   const api = SEARCH_API[platform]
   if (!api) return null
+  const host = hostOf(api.url('x'))
+  // 主机在熔断中就别发请求了：这一发就是白等一个超时
+  if (isTripped(host)) { dlog(`✗ ${platform} 搜索跳过：${host} 熔断中`); return null }
   const remain = deadline - Date.now()
   if (remain <= 1200) return null
 
@@ -522,6 +594,9 @@ async function searchVerified(target, platform, deadline) {
   const kw = firstSinger ? `${target.name} ${firstSinger}` : target.name
 
   const res = await fetchUrl(api.url(kw), Math.min(SEARCH_TIMEOUT, remain))
+  // 只有传输层失败才计入熔断；「搜不到 / 歌不匹配」是搜索本身的结果，不是主机故障
+  if (res.err || !res.statusCode || res.statusCode >= 500) noteFail(host)
+  else if (res.statusCode === 200) noteOk(host)
   if (res.err || res.statusCode !== 200 || !res.body) return null
 
   let j
@@ -543,8 +618,32 @@ async function searchVerified(target, platform, deadline) {
     }
   }
 
-  if (best) return { hit: best, rejects }
+if (best) return { hit: best, rejects }
   return { hit: null, rejects }
+}
+
+/**
+ * 搜索结果在**整个 resolve（所有音质轮次）内复用**。
+ *
+ * 这是「重试很久」的最大单一原因：搜索只跟「歌名 + 歌手」有关，跟 quality 无关，
+ * 但 v1.3.7 每开一轮降级就重搜一次。实测 kg/flac24bit 的 9.65s 里有 8.9s
+ * 是四次一模一样的 QQ 搜索（1.8/2.9/1.7/2.8s）。
+ *
+ * 缓存的是 Promise 而不是结果，所以并发调用也只会真正发一次请求。
+ */
+function searchCached(ctx, platform, target, deadline) {
+  if (!ctx) return searchVerified(target, platform, deadline)
+  const hit = ctx.search.get(platform)
+  if (hit) {
+    dlog(`↺ ${platform} 搜索结果直接复用（同一首歌，降音质不用重搜）`)
+    return hit
+  }
+const p = searchVerified(target, platform, deadline).catch(() => null)
+  ctx.search.set(platform, p)
+  // 「搜挂了」（null）是偶发的，不缓存结果 —— 万一后面还有降级轮次，让它能再搜一次；
+  // 而「搜到了但三重校验不通过」必须缓存，否则每轮重搜一遍（实测这就是 9s 的来源）。
+  p.then((r) => { if (!r) ctx.search.delete(platform) })
+  return p
 }
 
 /* ============================ URL 解析 ============================ */
@@ -655,6 +754,13 @@ async function tryGateway(gw, id, quality, deadline, interval) {
   let url
   try { url = gw.url(id, quality) } catch { return { url: null, reason: 'URL 构造失败' } }
 
+  // 熔断中的主机直接跳过：继续发只是把预算白烧在一个已知宕机上
+  const host = hostOf(url)
+  if (isTripped(host)) return { url: null, reason: `${host} 熔断中` }
+const fail = (reason) => { noteFail(host); return { url: null, reason } }
+  // ok(链接, 原因)：成功就清掉该主机的熔断计数，并返回**实际要用的**链接
+  const ok = (u, reason) => { noteOk(host); return { url: u, reason } }
+
   let res = await fetchUrl(url, Math.min(REQ_TIMEOUT, remain))
 
   // 上游 5xx 基本都是网关瞬时限流/抖动（实测 nginx 会直接回 502），
@@ -665,37 +771,42 @@ async function tryGateway(gw, id, quality, deadline, interval) {
     const retry = await fetchUrl(url, Math.min(REQ_TIMEOUT, deadline - Date.now()))
     if (!retry.err && retry.statusCode) res = retry
   }
-  if (res.err || res.statusCode === 0) return { url: null, reason: `网络失败(${res.err || '无响应'})` }
+  if (res.err || res.statusCode === 0) return fail(`网络失败(${res.err || '无响应'})`)
 
   if (res.statusCode >= 300 && res.statusCode < 400) {
-    if (!res.location) return { url: null, reason: '重定向但无 Location' }
+    if (!res.location) return fail('重定向但无 Location')
     const loc = resolveLocation(res.location, url)
     // 排掉跳到网站首页/占位页的情况
     if (/\.(html?|php)$/i.test(loc) && !/music|audio|song|stream|\.mp3|\.flac|\.m4a/i.test(loc)) {
-      return { url: null, reason: '重定向到网页而非音频' }
+      return fail('重定向到网页而非音频')
     }
-    if (!isValidUrl(loc)) return { url: null, reason: '重定向目标非法' }
+    if (!isValidUrl(loc)) return fail('重定向目标非法')
     // 跳到 .php 网关地址的一律先自己跟完，确认真能拿到音频。
     // 这些网关时好时坏（实测 wy.php 302 有时直接转出 nginx 404），
     // 把没验证过的地址丢给播放器，客户端只会报 onError，
     // 用户看到的是「能取到链但播不出来」，比直接失败还难排查。
-    if (isGatewayAddress(loc)) {
+if (isGatewayAddress(loc)) {
       const playable = await isPlayable(loc, deadline)
-      if (!playable.ok) return { url: null, reason: `302 目标不可播(${playable.reason})` }
-      return { url: loc, reason: `302 目标预检通过(${playable.reason})` }
+      if (!playable.ok) return fail(`302 目标不可播(${playable.reason})`)
+      return ok(loc, `302 目标预检通过(${playable.reason})`)
     }
     const full2 = await checkNotPreview(loc, interval, quality, deadline)
-    if (!full2.ok) return { url: null, reason: full2.reason }
-    return { url: loc, reason: '302 跳转(LX 播放器会跟随)' }
+    if (!full2.ok) return fail(full2.reason)
+    return ok(loc, '302 跳转(LX 播放器会跟随)')
   }
 
-  if (res.statusCode < 200 || res.statusCode >= 300) {
+if (res.statusCode < 200 || res.statusCode >= 300) {
+    // 4xx/5xx 都算「这台机器/这条路径此刻不可用」，计入熔断；
+    // 换一首没版权的歌会立刻恢复（noteOk），所以不会误伤正常情况。
+    // 注意：**裸 404（nginx 直接回、body 为空）是接口下线**，
+    // 不是「这首歌没版权」—— 网关自己的「无此歌」会走下面的 JSON 分支。
+    if (res.statusCode === 404 || res.statusCode >= 500) noteFail(host)
     return { url: null, reason: /^50\d$/.test(String(res.statusCode)) ? `上游故障(HTTP ${res.statusCode})` : `HTTP ${res.statusCode}` }
   }
-  if (/^audio\//i.test(String(res.contentType || ''))) {
+if (/^audio\//i.test(String(res.contentType || ''))) {
     const full = await checkNotPreview(url, interval, quality, deadline)
-    if (!full.ok) return { url: null, reason: full.reason }
-    return { url, reason: '网关内联转发' }
+    if (!full.ok) return fail(full.reason)
+    return ok(url, '网关内联转发')
   }
 
   // 走到这里说明网关自己没内联音频，但它把 302 的目标地址直接吐在 body 里。
@@ -710,7 +821,7 @@ async function tryGateway(gw, id, quality, deadline, interval) {
       const msg = (j && (j.msg || j.message)) || ''
       const code = j && (j.code ?? j.status)
       if (code === 500 || code === 502 || code === 503) {
-        return { url: null, reason: `上游故障(${String(msg).slice(0, 24)})` }
+        return fail(`上游故障(${String(msg).slice(0, 24)})`)
       }
       if (code === 404) return { url: null, reason: '网关无此歌' }
       if (msg) return { url: null, reason: `网关无版权(${String(msg).slice(0, 30)})` }
@@ -718,14 +829,14 @@ async function tryGateway(gw, id, quality, deadline, interval) {
     return { url: null, reason: '响应里没有可用的 URL' }
   }
 
-  if (isGatewayAddress(u0)) {
+if (isGatewayAddress(u0)) {
     const playable = await isPlayable(u0, deadline)
-    if (!playable.ok) return { url: null, reason: `预检不可播(${playable.reason})` }
-    return { url: u0, reason: `预检通过(${playable.reason})` }
+    if (!playable.ok) return fail(`预检不可播(${playable.reason})`)
+    return ok(u0, `预检通过(${playable.reason})`)
   }
   const full3 = await checkNotPreview(u0, interval, quality, deadline)
-  if (!full3.ok) return { url: null, reason: full3.reason }
-  return { url: u0, reason: '已解析' }
+  if (!full3.ok) return fail(full3.reason)
+  return ok(u0, '已解析')
 }
 
 /** 是不是一个「自己不做代理、只负责跳转」的 .php 网关地址 */
@@ -744,7 +855,24 @@ const QUALITIES = ['128k', '320k', 'flac', 'flac24bit']
  *   2. 跨源搜索 + 目标平台直连 —— 错歌风险低（过了三重校验）
  *   3. 本平台降级网关      —— 错歌风险中（网关内部做了平台映射）
  */
-const DEGRADE_MIN_BUDGET = 2500
+const DEGRADE_MIN_BUDGET = 1800
+
+/**
+ * 哪些失败原因才值得「换个音质再试一轮」。
+ *
+ * v1.3.7 不分原因，一律降级重跑，于是网络/网关/搜索类失败也要乘上轮数：
+ * 实测 kg/flac24bit 一次失败就白耗 9.65s（4 轮 × 整套流水线），
+ * 而每一轮拿到的都是一模一样的失败。
+ *
+* 真正会随 level 变化的只有「这一档拿不到」，而且必须由**网关自己的 JSON 答复**给出：
+ *   网关无此歌 / 网关无版权 / 响应里没有可用的 URL
+ * 其余一律不降级：
+ *   - 网络失败、超时、上游故障 5xx —— 与音质无关；
+ *   - 搜索无匹配 —— 搜索结果与音质无关，换档只会再搜一遍得到同样的结果；
+ *   - **裸 HTTP 404**（body 为空、nginx 直接回的）—— 这是接口下线，
+ *     实测 yinyue.haitangw.net 现在对所有 .php 都这样，拿它去换 level 是白跑。
+ */
+const DEGRADE_WORTHY = /网关无此歌|网关无版权|响应里没有可用的 URL/
 
 /**
  * 音质降级链：从请求音质往下逐级退，最低到 128k。
@@ -758,11 +886,15 @@ function degradeChain(quality) {
 
 /**
  * 对外入口：按降级链重试。全程共用一个 deadline，保证总耗时不超预算。
+ *
+ * ctx 在所有音质轮次间共享：搜索结果只跟歌名/歌手有关，与 quality 无关，
+ * 缓存住就能把「每轮重搜一次」变成「整次只搜一次」。
  */
 async function resolve(source, info, quality) {
   const deadline = Date.now() + TOTAL_BUDGET
   const chain = degradeChain(quality)
   const allLog = []
+  const ctx = { search: new Map() }
   dlog(`开始 ${source} 音质=${quality} 降级链=[${chain.join('>')}] 预算=${TOTAL_BUDGET}ms`)
 
   for (let i = 0; i < chain.length; i++) {
@@ -778,7 +910,7 @@ async function resolve(source, info, quality) {
       allLog.push(`── 降级重试：${quality} → ${q} ──`)
       dlog(`── 降级重试：${quality} → ${q} ──`)
     }
-    const r = await resolveOnce(source, info, q, deadline)
+    const r = await resolveOnce(source, info, q, deadline, ctx)
     for (const line of r.log) {
       allLog.push(i > 0 ? `[${q}] ${line}` : line)
       dlog(i > 0 ? `[${q}] ${line}` : line)
@@ -788,32 +920,47 @@ async function resolve(source, info, quality) {
       dlog(`✓ 命中 ${r.url}`)
       return { url: r.url, log: allLog }
     }
+    // 本轮的失败与音质无关 → 降级必然同样失败，直接收工（v1.3.8 新增）
+    if (!r.degradeWorthy) {
+      const line = '✗ 失败原因与音质无关（网络/网关/搜索），不再逐级降级'
+      allLog.push(line)
+      dlog(line)
+      break
+    }
   }
   dlog(`✗ ${source} 全部尝试失败，耗时 ${TOTAL_BUDGET - (deadline - Date.now())}ms`)
   return { url: null, log: allLog }
 }
 
-async function resolveOnce(source, info, quality, deadline) {
+async function resolveOnce(source, info, quality, deadline, ctx) {
   // info 可能是 { type, musicInfo } 也可能已平铺，统一在这里解包
   const mi = (info && info.musicInfo) || info || {}
   const target = targetInfo(mi)
   const log = []
 
-  const ownId = ID_PICKER[source] ? ID_PICKER[source](mi) : null
+const ownId = ID_PICKER[source] ? ID_PICKER[source](mi) : null
   if (!ownId) log.push(`✗ ${source} musicInfo 里没有可用 id（字段: ${Object.keys(mi).join(',')}）`)
   const directs = DIRECT_GATEWAY[source] || []
   const fallbacks = FALLBACK_GATEWAY[source] || []
+  // 本轮所有网关失败原因：用来判断「还值不值得降音质重试」
+  const reasons = []
+  // 本轮压根没发出任何请求（如 musicInfo 无 id）时降级也没用
+  let attempted = false
 
   // ── 阶段 1：本平台直连（错歌风险 0，最快，优先）──
   // 同一平台的多个直连网关互不依赖，并发取，先成功者胜。
-  if (ownId && directs.length) {
+if (ownId && directs.length) {
+    attempted = true
     const results = await Promise.all(directs.map((gw) => tryGateway(gw, ownId, quality, deadline, target.interval)))
     for (let i = 0; i < directs.length; i++) {
       const r = results[i]
-      if (r.url) { log.push(`✓ ${source} 直连 ${directs[i].name} (${r.reason})`); return { url: r.url, log } }
+      if (r.url) { log.push(`✓ ${source} 直连 ${directs[i].name} (${r.reason})`); return { url: r.url, log, degradeWorthy: false } }
     }
     // 全部失败时按配置顺序逐条记录，保留可读的排查信息
-    for (let i = 0; i < directs.length; i++) log.push(`✗ ${source} 直连 ${directs[i].name}: ${results[i].reason}`)
+    for (let i = 0; i < directs.length; i++) {
+      log.push(`✗ ${source} 直连 ${directs[i].name}: ${results[i].reason}`)
+      reasons.push(results[i].reason)
+    }
   }
 
   // ── 阶段 2 + 3：跨源搜索 与 本平台降级网关 并发 ──
@@ -830,11 +977,12 @@ async function resolveOnce(source, info, quality, deadline) {
   // 跨源：多个目标平台的搜索也并发发起，结果仍按配置优先级依次取用
   const crossTask = (async () => {
     const out = { url: null, log: [] }
-    if (!others.length || deadline - Date.now() < 3000) {
+if (!others.length || deadline - Date.now() < 3000) {
       if (others.length) out.log.push('✗ 预算不足，跳过跨源')
       return out
     }
-    const searched = await Promise.all(others.map((o) => searchVerified(target, o, deadline)))
+    // 搜索结果跨音质轮次复用（ctx 缓存），这里只会在整次 resolve 里真搜一次
+    const searched = await Promise.all(others.map((o) => searchCached(ctx, o, target, deadline)))
     for (let i = 0; i < others.length; i++) {
       const other = others[i]
       const r = searched[i]
@@ -848,9 +996,11 @@ async function resolveOnce(source, info, quality, deadline) {
       // 注意：tx/kg/mg 并无「直连网关」——它们只能经 qq_kw / kg_kw 这类
       // 降级网关取链。所以这里必须把直连和降级都遍历一遍，
       // 否则搜到了正确 id 却没有网关可用，会静默失败。
-      const targetGws = [...(DIRECT_GATEWAY[other] || []), ...(FALLBACK_GATEWAY[other] || [])]
+const targetGws = [...(DIRECT_GATEWAY[other] || []), ...(FALLBACK_GATEWAY[other] || [])]
       if (!targetGws.length) { out.log.push(`✗ ${source}→${other} 命中「${r.hit.name}」但该平台无取链网关`); continue }
+      attempted = true
       const gs = await Promise.all(targetGws.map((gw) => tryGateway(gw, r.hit.id, quality, deadline, target.interval)))
+      for (const g of gs) if (!g.url) reasons.push(g.reason)
       for (let j = 0; j < targetGws.length; j++) {
         if (gs[j].url) {
           out.log.push(`✓ ${source}→${other}「${r.hit.name}」三重校验通过 → ${targetGws[j].name} (${gs[j].reason})`)
@@ -864,28 +1014,30 @@ async function resolveOnce(source, info, quality, deadline) {
   })()
 
   // 降级网关：与跨源同时发起，作为「跨源全灭时立刻可用」的预取结果
-  const fallbackTask = (async () => {
+const fallbackTask = (async () => {
     const out = { url: null, log: [] }
     if (!ownId || !fallbacks.length) return out
+    attempted = true
     const gs = await Promise.all(fallbacks.map((gw) => tryGateway(gw, ownId, quality, deadline, target.interval)))
     for (let i = 0; i < fallbacks.length; i++) {
       if (gs[i].url) { out.log.push(`✓ ${source} 降级 ${fallbacks[i].name} (${gs[i].reason})`); out.url = gs[i].url; break }
     }
     for (let i = 0; i < fallbacks.length; i++) {
-      if (!gs[i].url) out.log.push(`✗ ${source} 降级 ${fallbacks[i].name}: ${gs[i].reason}`)
+      if (!gs[i].url) { out.log.push(`✗ ${source} 降级 ${fallbacks[i].name}: ${gs[i].reason}`); reasons.push(gs[i].reason) }
     }
     return out
   })()
 
   const cross = await crossTask.catch((e) => ({ url: null, log: [`✗ 跨源阶段异常: ${(e && e.message) || e}`] }))
   for (const line of cross.log) log.push(line)
-  if (cross.url) return { url: cross.url, log }
+  if (cross.url) return { url: cross.url, log, degradeWorthy: false }
 
   const fb = await fallbackTask.catch((e) => ({ url: null, log: [`✗ 降级阶段异常: ${(e && e.message) || e}`] }))
   for (const line of fb.log) log.push(line)
-  if (fb.url) return { url: fb.url, log }
+  if (fb.url) return { url: fb.url, log, degradeWorthy: false }
 
-  return { url: null, log }
+  // 至少有一个「换档位可能有救」的原因，才允许再开一轮降级
+  return { url: null, log, degradeWorthy: attempted && reasons.some((r) => DEGRADE_WORTHY.test(r)) }
 }
 
 /* ============================ LX 接口 ============================ */
