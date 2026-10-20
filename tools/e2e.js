@@ -34,10 +34,13 @@ const VERIFY = argv.includes('--verify')
  * 其余平台是周杰伦原版）：Aggregator 的三重校验会正确地拒绝跨源匹配，
  * 所以拿它当通用通过率指标会平白判失败。想专门验证防错歌用 --trap。
  */
-const SONG = argv.includes('--trap') ? IDS.songs : (IDS.songs_wellknown || IDS.songs)
+// --songset <ids.json 里的键> 可换样本歌，如 --songset songs_jj
+const songsetIdx = argv.indexOf('--songset')
+const SONGSET = songsetIdx >= 0 ? argv[songsetIdx + 1] : null
+const SONG = (SONGSET && IDS[SONGSET]) || (argv.includes('--trap') ? IDS.songs : (IDS.songs_wellknown || IDS.songs))
 const fileIdx = argv.indexOf('--file')
 const CUSTOM_FILE = fileIdx >= 0 ? argv[fileIdx + 1] : null
-const positional = argv.filter((a) => !a.startsWith('--') && a !== CUSTOM_FILE)
+const positional = argv.filter((a) => !a.startsWith('--') && a !== CUSTOM_FILE && a !== SONGSET)
 const SOURCE_NAMES = fs.readdirSync(ROOT, { withFileTypes: true })
   .filter((d) => d.isDirectory() && fs.existsSync(path.join(ROOT, d.name, 'latest.js')))
   .map((d) => d.name)
@@ -146,6 +149,7 @@ const ICON = { ok: '✅', bad: '❌', warn: '⚠️ ' }
     for (const p of usePlatforms) {
       if (src.loadError) break
       if (!src.sources[p]) { console.log(`  ${ICON.warn}${p}: 该源未声明（LX 不会调用）`); continue }
+      if (!SONG[p]) { console.log(`  ${ICON.warn}${p}: ids.json 里没有该平台的样本歌 ID，跳过`); continue }
       for (const q of ALL_QUALITIES) {
         let res
         // 严格按洛雪 2.12.x 的真实约定：info = { type, musicInfo }。

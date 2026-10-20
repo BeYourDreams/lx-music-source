@@ -94,5 +94,43 @@
       "albumName": "叶惠美",
       "interval": 269
     }
+  },
+  "songs_jj": {
+    "note": "林俊杰《江南》（第二天堂，267~268s）。mg 未收录：咪咕搜索接口从本机不可达，拿不到真实 copyrightId，故 e2e 会跳过 mg。",
+    "wy": {
+      "name": "江南",
+      "singer": "林俊杰",
+      "songmid": "108914",
+      "albumName": "第二天堂",
+      "albumId": "10804",
+      "interval": 268
+    },
+    "tx": {
+      "name": "江南",
+      "singer": "林俊杰",
+      "songmid": "004TXEXY2G2c7C",
+      "strMediaMid": "003NikJo0a0uzm",
+      "songId": 9063002,
+      "albumMid": "000y5gq7449K9I",
+      "albumName": "第二天堂",
+      "interval": 267
+    },
+    "kw": {
+      "name": "江南",
+      "singer": "林俊杰",
+      "songmid": "93157",
+      "albumName": "第二天堂",
+      "interval": 267
+    },
+    "kg": {
+      "name": "江南",
+      "singer": "林俊杰",
+      "songmid": "32125113",
+      "hash": "b83dbb8e3dd3fcf86bf32690b91547f5",
+      "albumId": "969588",
+      "albumAudioId": "32125113",
+      "albumName": "第二天堂",
+      "interval": 267
+    }
   }
 }
