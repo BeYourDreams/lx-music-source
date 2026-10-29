@@ -3,7 +3,7 @@
  * @description v1.3.7 修好日志里版本号双 v（vv1.3.6）的显示：已是最新/发现新版本都只带一个 v
  * @version v1.3.7
  * @author pdone
- * @homepage https://github.com/qq458249269/lx-music-source
+ * @homepage https://github.com/BeYourDreams/lx-music-source
  * @netease MUSIC_U=;
  * @tencent ts_last=y.qq.com/n/ryqq/album;
  * @preserve
@@ -64,10 +64,10 @@ const TOTAL_BUDGET = 12000
  * 注意：ghproxy.cn 已失效（返回 200 但是拦截页），不要加进来。
  */
 const UPDATE_URLS = [
-  'https://ghfast.top/https://raw.githubusercontent.com/qq458249269/lx-music-source/main/aggregator/latest.js',
-  'https://gh-proxy.com/https://raw.githubusercontent.com/qq458249269/lx-music-source/main/aggregator/latest.js',
-  'https://ghproxy.net/https://raw.githubusercontent.com/qq458249269/lx-music-source/main/aggregator/latest.js',
-  'https://raw.githubusercontent.com/qq458249269/lx-music-source/main/aggregator/latest.js',
+'https://ghfast.top/https://raw.githubusercontent.com/BeYourDreams/lx-music-source/main/aggregator/latest.js',
+'https://gh-proxy.com/https://raw.githubusercontent.com/BeYourDreams/lx-music-source/main/aggregator/latest.js',
+'https://ghproxy.net/https://raw.githubusercontent.com/BeYourDreams/lx-music-source/main/aggregator/latest.js',
+'https://raw.githubusercontent.com/BeYourDreams/lx-music-source/main/aggregator/latest.js',
 ]
 /** 单个更新地址的超时。更新检查不能拖慢启动，也不能拖慢取链。 */
 const UPDATE_TIMEOUT = 3000

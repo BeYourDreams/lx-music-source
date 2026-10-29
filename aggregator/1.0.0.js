@@ -3,7 +3,7 @@
  * @description v1.0.0 多网关聚合，自动降级
  * @version v1.0.0
  * @author pdone
- * @homepage https://github.com/qq458249269/lx-music-source
+ * @homepage https://github.com/BeYourDreams/lx-music-source
  * @netease MUSIC_U=;
  * @tencent ts_last=y.qq.com/n/ryqq/album;
  * @preserve

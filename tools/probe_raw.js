@@ -1,7 +1,7 @@
 // 验证 README 里的 raw 链接是否真的能取到脚本
 const https = require('https')
 
-const RAW = 'raw.githubusercontent.com/qq458249269/lx-music-source/main/aggregator/latest.js'
+const RAW = 'raw.githubusercontent.com/BeYourDreams/lx-music-source/main/aggregator/latest.js'
 const urls = process.argv.slice(2).length
   ? process.argv.slice(2)
   : [

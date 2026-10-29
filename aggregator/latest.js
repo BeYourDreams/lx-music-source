@@ -3,7 +3,7 @@
 * @description v1.3.8 修「降级重试要等很久」：搜索结果跨音质复用、传输层失败不再空降级、主机熔断、超时收紧
  * @version v1.3.8
  * @author pdone
- * @homepage https://github.com/qq458249269/lx-music-source
+@homepage https://github.com/BeYourDreams/lx-music-source
  * @netease MUSIC_U=;
  * @tencent ts_last=y.qq.com/n/ryqq/album;
  * @preserve
@@ -74,10 +74,10 @@ const TOTAL_BUDGET = 8000
  * 注意：ghproxy.cn 已失效（返回 200 但是拦截页），不要加进来。
  */
 const UPDATE_URLS = [
-  'https://ghfast.top/https://raw.githubusercontent.com/qq458249269/lx-music-source/main/aggregator/latest.js',
-  'https://gh-proxy.com/https://raw.githubusercontent.com/qq458249269/lx-music-source/main/aggregator/latest.js',
-  'https://ghproxy.net/https://raw.githubusercontent.com/qq458249269/lx-music-source/main/aggregator/latest.js',
-  'https://raw.githubusercontent.com/qq458249269/lx-music-source/main/aggregator/latest.js',
+'https://ghfast.top/https://raw.githubusercontent.com/BeYourDreams/lx-music-source/main/aggregator/latest.js',
+'https://gh-proxy.com/https://raw.githubusercontent.com/BeYourDreams/lx-music-source/main/aggregator/latest.js',
+'https://ghproxy.net/https://raw.githubusercontent.com/BeYourDreams/lx-music-source/main/aggregator/latest.js',
+'https://raw.githubusercontent.com/BeYourDreams/lx-music-source/main/aggregator/latest.js',
 ]
 /** 单个更新地址的超时。更新检查不能拖慢启动，也不能拖慢取链。 */
 const UPDATE_TIMEOUT = 3000

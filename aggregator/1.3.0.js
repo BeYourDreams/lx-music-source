@@ -3,7 +3,7 @@
  * @description v1.3.0 跨源降级 + 三重校验防错歌 + 音质降级保播放
  * @version v1.3.0
  * @author pdone
- * @homepage https://github.com/qq458249269/lx-music-source
+ * @homepage https://github.com/BeYourDreams/lx-music-source
  * @netease MUSIC_U=;
  * @tencent ts_last=y.qq.com/n/ryqq/album;
  * @preserve

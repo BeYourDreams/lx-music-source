@@ -8,7 +8,7 @@
 **网易云 · QQ · 酷我 · 酷狗 · 咪咕** 五平台通吃，源码完全可审计，不 eval 任何混淆代码。
 
 ```
-https://raw.githubusercontent.com/qq458249269/lx-music-source/main/aggregator/latest.js
+https://raw.githubusercontent.com/BeYourDreams/lx-music-source/main/aggregator/latest.js
 ```
 
 | | |
@@ -30,15 +30,15 @@ https://raw.githubusercontent.com/qq458249269/lx-music-source/main/aggregator/la
 下面每个前缀都指向**同一个文件**，任选其一：
 
 ```
-https://ghfast.top/https://raw.githubusercontent.com/qq458249269/lx-music-source/main/aggregator/latest.js
+https://ghfast.top/https://raw.githubusercontent.com/BeYourDreams/lx-music-source/main/aggregator/latest.js
 ```
 
 ```
-https://gh-proxy.com/https://raw.githubusercontent.com/qq458249269/lx-music-source/main/aggregator/latest.js
+https://gh-proxy.com/https://raw.githubusercontent.com/BeYourDreams/lx-music-source/main/aggregator/latest.js
 ```
 
 ```
-https://ghproxy.net/https://raw.githubusercontent.com/qq458249269/lx-music-source/main/aggregator/latest.js
+https://ghproxy.net/https://raw.githubusercontent.com/BeYourDreams/lx-music-source/main/aggregator/latest.js
 ```
 
 > ❓ 用不了？洛雪里进入「设置 → 音源设置」，把上面的地址填进「自定义源」。
@@ -150,17 +150,17 @@ python UpdateInstalled.py --probe     # 额外对生效中的源跑一次实网�
 
 ### QDY（网易云 + 酷我，链路最稳）
 ```
-https://raw.githubusercontent.com/qq458249269/lx-music-source/main/qdy/latest.js
+https://raw.githubusercontent.com/BeYourDreams/lx-music-source/main/qdy/latest.js
 ```
 
 ### ChangQing（QQ + 酷狗 + 酷我 + 网易云）
 ```
-https://raw.githubusercontent.com/qq458249269/lx-music-source/main/changqing/latest.js
+https://raw.githubusercontent.com/BeYourDreams/lx-music-source/main/changqing/latest.js
 ```
 
 ### SixYin（仅网易云）
 ```
-https://raw.githubusercontent.com/qq458249269/lx-music-source/main/sixyin/latest.js
+https://raw.githubusercontent.com/BeYourDreams/lx-music-source/main/sixyin/latest.js
 ```
 
 ### 其他源（均失效，仅供参考）
@@ -169,13 +169,13 @@ https://raw.githubusercontent.com/qq458249269/lx-music-source/main/sixyin/latest
 <summary>展开查看所有失效源链接</summary>
 
 ```
-https://raw.githubusercontent.com/qq458249269/lx-music-source/main/flower/latest.js
-https://raw.githubusercontent.com/qq458249269/lx-music-source/main/grass/latest.js
-https://raw.githubusercontent.com/qq458249269/lx-music-source/main/huanyin/latest.js
-https://raw.githubusercontent.com/qq458249269/lx-music-source/main/huibq/latest.js
-https://raw.githubusercontent.com/qq458249269/lx-music-source/main/ikun/latest.js
-https://raw.githubusercontent.com/qq458249269/lx-music-source/main/juhe/latest.js
-https://raw.githubusercontent.com/qq458249269/lx-music-source/main/lx/latest.js
+https://raw.githubusercontent.com/BeYourDreams/lx-music-source/main/flower/latest.js
+https://raw.githubusercontent.com/BeYourDreams/lx-music-source/main/grass/latest.js
+https://raw.githubusercontent.com/BeYourDreams/lx-music-source/main/huanyin/latest.js
+https://raw.githubusercontent.com/BeYourDreams/lx-music-source/main/huibq/latest.js
+https://raw.githubusercontent.com/BeYourDreams/lx-music-source/main/ikun/latest.js
+https://raw.githubusercontent.com/BeYourDreams/lx-music-source/main/juhe/latest.js
+https://raw.githubusercontent.com/BeYourDreams/lx-music-source/main/lx/latest.js
 ```
 
 </details>
@@ -184,22 +184,22 @@ https://raw.githubusercontent.com/qq458249269/lx-music-source/main/lx/latest.js
 
 ### Aggregator（首选）
 ```
-https://ghproxy.net/raw.githubusercontent.com/qq458249269/lx-music-source/main/aggregator/latest.js
+https://ghproxy.net/raw.githubusercontent.com/BeYourDreams/lx-music-source/main/aggregator/latest.js
 ```
 
 ### QDY（推荐）
 ```
-https://ghproxy.net/raw.githubusercontent.com/qq458249269/lx-music-source/main/qdy/latest.js
+https://ghproxy.net/raw.githubusercontent.com/BeYourDreams/lx-music-source/main/qdy/latest.js
 ```
 
 ### ChangQing
 ```
-https://ghproxy.net/raw.githubusercontent.com/qq458249269/lx-music-source/main/changqing/latest.js
+https://ghproxy.net/raw.githubusercontent.com/BeYourDreams/lx-music-source/main/changqing/latest.js
 ```
 
 ### SixYin
 ```
-https://ghproxy.net/raw.githubusercontent.com/qq458249269/lx-music-source/main/sixyin/latest.js
+https://ghproxy.net/raw.githubusercontent.com/BeYourDreams/lx-music-source/main/sixyin/latest.js
 ```
 
 ### 其他加速站点

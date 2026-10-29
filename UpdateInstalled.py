@@ -55,7 +55,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-REPO = 'qq458249269/lx-music-source'
+REPO = 'BeYourDreams/lx-music-source'
 BRANCH = 'main'
 
 # 加速源优先，直连 raw 兜底。全部指向同一个文件。
