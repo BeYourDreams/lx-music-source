@@ -1,9 +1,9 @@
 /*!
  * @name 聚合音源
-* @description v1.3.8 修「降级重试要等很久」：搜索结果跨音质复用、传输层失败不再空降级、主机熔断、超时收紧
+ * @description v1.3.8 修「降级重试要等很久」：搜索结果跨音质复用、传输层失败不再空降级、主机熔断、超时收紧
  * @version v1.3.8
  * @author pdone
-@homepage https://github.com/BeYourDreams/lx-music-source
+ * @homepage https://github.com/BeYourDreams/lx-music-source
  * @netease MUSIC_U=;
  * @tencent ts_last=y.qq.com/n/ryqq/album;
  * @preserve
