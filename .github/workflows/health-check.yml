@@ -1,0 +1,94 @@
+name: 音源可用性检查
+
+on:
+  schedule:
+    # UTC 17:00 = 北京时间每天 01:00
+    - cron: '0 17 * * *'
+  workflow_dispatch:
+  # 音源增删或更新后立即重算报告，避免等到下一次定时任务。
+  # 报告与状态只写入数据分支（health-status），主分支不会被改写，
+  # 因此不存在「机器人提交触发自身」的循环路径。
+  push:
+    branches: [main]
+    paths:
+      # 任一首源的版本文件或 latest.js 发生变化
+      - '*/*.js'
+      - 'CreateLatest.py'
+      - 'probe.py'
+      - '.github/workflows/health-check.yml'
+
+permissions:
+  contents: write
+
+# 同一时间只跑一轮，避免定时任务与推送触发的实例互相覆盖提交
+concurrency:
+  group: health-check
+  cancel-in-progress: false
+
+jobs:
+  health-check:
+    runs-on: ubuntu-latest
+    # 聚合音源（如 jiexiang）链路较多，预留充足时间
+    timeout-minutes: 20
+    env:
+      # 数据分支：orphan 分支，仅含报告图片与探测状态
+      DATA_BRANCH: health-status
+      DATA_SVG_FILE: status.svg
+      DATA_STATE_FILE: health-state.json
+    steps:
+      # 第一步：取主分支的音源与脚本（固定 main，避免用未合并的分支代码产出数据）
+      - name: Checkout main for sources and script
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: main-src
+          fetch-depth: 1
+
+      # 第二步：准备数据分支工作副本；分支不存在则建 orphan 分支
+      - name: Prepare data branch worktree
+        run: |
+          rm -rf "$GITHUB_WORKSPACE/data"
+          cp -r "$GITHUB_WORKSPACE/main-src" "$GITHUB_WORKSPACE/data"
+          cd "$GITHUB_WORKSPACE/data"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git fetch origin "$DATA_BRANCH" 2>/dev/null && git rev-parse --verify FETCH_HEAD >/dev/null 2>&1; then
+            git checkout -B "$DATA_BRANCH" FETCH_HEAD
+            echo "已切到数据分支 $DATA_BRANCH"
+          else
+            echo "数据分支 $DATA_BRANCH 尚不存在，创建 orphan 分支"
+            git checkout --orphan "$DATA_BRANCH"
+            git rm -rf . >/dev/null 2>&1 || true
+            rm -rf .github .gitignore
+          fi
+
+      # 第三步：取回既有探测状态（数据分支首轮无状态时以空状态开始）
+      - name: Restore previous state
+        run: |
+          if [ -f "$GITHUB_WORKSPACE/data/$DATA_STATE_FILE" ]; then
+            cp "$GITHUB_WORKSPACE/data/$DATA_STATE_FILE" "$GITHUB_WORKSPACE/main-src/.health-state.json"
+            echo "已取回数据分支上的状态文件"
+          else
+            echo "数据分支暂无状态文件，按空状态开始"
+          fi
+
+      # 第四步：运行探测并渲染报告（SVG 先落到临时目录）
+      - name: Run probe and render report
+        working-directory: main-src
+        run: |
+          python probe.py --svg "$RUNNER_TEMP/$DATA_SVG_FILE"
+
+      # 第五步：仅在报告或状态确实变化时提交并推送到数据分支
+      - name: Commit and push only on change
+        run: |
+          cd "$GITHUB_WORKSPACE/data"
+          cp "$RUNNER_TEMP/$DATA_SVG_FILE" "$DATA_SVG_FILE"
+          cp "$GITHUB_WORKSPACE/main-src/.health-state.json" "$DATA_STATE_FILE"
+          git add "$DATA_SVG_FILE" "$DATA_STATE_FILE"
+          # 状态没有变化时工作区与索引一致，直接结束，不产生空提交
+          if git diff --cached --quiet; then
+            echo "状态无变化，跳过提交"
+          else
+            git commit -m "chore: update availability report $(TZ=Asia/Shanghai date +%Y-%m-%d)"
+            git push origin "HEAD:refs/heads/$DATA_BRANCH"
+          fi

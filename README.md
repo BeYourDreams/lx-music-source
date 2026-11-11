@@ -185,6 +185,22 @@ https://raw.githubusercontent.com/BeYourDreams/lx-music-source/main/changqing/la
 https://raw.githubusercontent.com/BeYourDreams/lx-music-source/main/sixyin/latest.js
 ```
 
+### 上游新增源（来自 [pdone/lx-music-source](https://github.com/pdone/lx-music-source)，本仓库未逐个实测）
+```
+https://raw.githubusercontent.com/BeYourDreams/lx-music-source/main/feichangdao/latest.js
+https://raw.githubusercontent.com/BeYourDreams/lx-music-source/main/fish/latest.js
+https://raw.githubusercontent.com/BeYourDreams/lx-music-source/main/helloworld/latest.js
+https://raw.githubusercontent.com/BeYourDreams/lx-music-source/main/hyw/latest.js
+https://raw.githubusercontent.com/BeYourDreams/lx-music-source/main/jiexiang/latest.js
+https://raw.githubusercontent.com/BeYourDreams/lx-music-source/main/qingliang/latest.js
+https://raw.githubusercontent.com/BeYourDreams/lx-music-source/main/suyin/latest.js
+https://raw.githubusercontent.com/BeYourDreams/lx-music-source/main/xinghai/latest.js
+https://raw.githubusercontent.com/BeYourDreams/lx-music-source/main/xinglan/latest.js
+https://raw.githubusercontent.com/BeYourDreams/lx-music-source/main/yuningxi/latest.js
+```
+
+> 加速：把开头的 `https://raw.githubusercontent.com/` 换成 `https://gh-proxy.org/raw.githubusercontent.com/` 即可。
+
 ### 其他源（均失效，仅供参考）
 
 <details>
@@ -314,6 +330,13 @@ node tools/probe_search.js
 
 ---
 
+## 📈 音源可用性（上游每日自动检测）
+
+<img alt="音源可用性检测结果" src="https://raw.githubusercontent.com/pdone/lx-music-source/health-status/status.svg" />
+
+上游每天 01:00（北京时间）跑一遍 `.github/workflows/health-check.yml` + `probe.py`，结果存于 `health-status` 分支。
+注意：该图只覆盖上游已有的源，**不含本仓库自研的 aggregator**；aggregator 的实测结果看上方状态表。
+
 ## 数据来源
 
 - [SixYin](https://www.sixyin.com/)
@@ -322,6 +345,16 @@ node tools/probe_search.js
 - [ikun](https://github.com/MeoProject/lx-music-api-server)
 - ChangQing（长青SVIP音源 by 元力菌）
 - HuanYin（幻音音源 by 竹佀）
+- [HYWmusic 公益版](https://github.com/Macrohard0001/HYWmusic_source)
+- [JieXiang](https://github.com/haonanren118/jiexiang-Music-Source)
+- XingHai（星海音乐源 by 万去了了 / 科学大魔王）
+- Fish（fish_music by 大鱼吃小鱼）
+- HelloWorld（by hello world）
+- YuNingXi（lx-玉宁熙-Pro by ynx）
+- FeiChangDao（非常刀 by 群主要进去）
+- QingLiang（轻量音源 by 本地定制）
+- SuYin（溯音音源 by 竹佀）
+- XingLan（星澜聚合音源 by 星澜团队）
 
 ## 本仓库自研：`aggregator`
 

@@ -5,24 +5,34 @@ import sys
 from pathlib import Path
 from typing import Dict
 
+# Windows 控制台默认 GBK，无法输出 emoji，这里强制切到 UTF-8
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+
 # Latest Version Numbers
 VERSIONS: Dict[str, str] = {
     'aggregator': '1.3.8',
     'changqing': '1.3.0',
+    'feichangdao': '5',
+    'fish': '1.9.0',
     'flower': '1',
     'grass': '1',
+    'helloworld': '260925',
     'huanyin': '3',
     'huibq': '1.2.0',
+    'hyw': '1.2.0',
     'ikun': '22',
-    'lx': '6',
+    'jiexiang': '2.3.0',
+    'lx': '7',
     'sixyin': '1.2.1',
+    'suyin': '1',
     'juhe': '3',
-    'qdy': '9.3'
+    'qdy': '9.3',
+    'qingliang': '2.1.0',
+    'xinghai': '3.2.18',
+    'xinglan': '4.0.2',
+    'yuningxi': '1.2.5'
 }
-
-# Windows 控制台默认 GBK，无法输出 emoji，这里强制切到 UTF-8
-if hasattr(sys.stdout, 'reconfigure'):
-    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
 
 def main() -> None:

@@ -1,3 +1,5 @@
 __pycache__/
 *.pyc
-.health_state.json
+temp
+openspec
+.health-state.json
