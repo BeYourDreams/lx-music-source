@@ -1,7 +1,7 @@
 /*!
  * @name 聚合音源
- * @description v1.3.8 修「降级重试要等很久」：搜索结果跨音质复用、传输层失败不再空降级、主机熔断、超时收紧
- * @version v1.3.8
+ * @description v1.3.9 网关大修：haitangw 全线下线后接入 zddyr / zrcdy / HYWmusic / 落月QQ；tx/kg 升为一等公民，wy 兜底跨源；新增试听片段双重闸门与重复链去重
+ * @version v1.3.9
  * @author pdone
  * @homepage https://github.com/BeYourDreams/lx-music-source
  * @netease MUSIC_U=;
@@ -31,11 +31,11 @@
  *
  * ── 平台策略 ──────────────────────────────────────────────
  *   wy / kw  本平台有「真链」网关，id 天然正确，零错歌风险 → 最优先
- *   tx / kg  本平台网关是降级到酷我的，有错歌风险 → 改为优先跨源拿真链
- *   mg       本平台全站失效 → 跨源是唯一出路
+ *   tx / kg  也有本平台真链网关（落月QQ / 星海后端），错歌风险同样为 0
+ *   mg       官方上游已死，只剩 HYWmusic 代理与跨源两条路
  *
- *   换句话说：tx/kg/mg 通过跨源拿到的网易云链，比它们自己网关
- *   给的酷我链「更正确」，而耗时相当（1.4s vs 0.6s）。
+ *   v1.3.9 之前 tx/kg 没有直连网关，只能靠跨源拿链 —— 一旦跨源搜不到，
+ *   本来有版权的歌也全播不了。现在两者都有直连网关，跨源只当备用。
  */
 
 'use strict'
@@ -179,28 +179,125 @@ const LEVEL_PARAM = {
 
 /**
  * 各平台的「直连网关」。id 传本平台 id，取回本平台资源，错歌风险最低。
- * order 小的先试。
+ * order 小的先试（同一平台的多条网关是并发发起的，先成功者胜）。
+ *
+ * ── v1.3.9 网关大修 ──────────────────────────────────────
+ * 旧的 haitangw 全套基本下线（实测 `yinyue.haitangw.net` 下 wy/qq_kw/kg_song_kw/migu
+ * 全部裸 404），只剩 `musicapi/kw` 还活。这里接入 2026-11 实测可用的新后端，
+ * 全部通过 `node tools/probe_candidates.js` 逐平台逐音质验证过：
+ *
+ *   haitangw/wy      ❌ 404（保留以便恢复后自动生效）
+ *   musicapi/kw      ✅ 唯一还活的旧网关
+ *   haitangw/mg      ❌ 404
+ *   zddyr/api        ✅ kw / kg；wy「取址失败」、tx 需卡密、mg「取流失败」
+ *   zrcdy/api        ✅ kg；kw 的转出地址 404
+ *   hyw/music        ✅ kw / kg / mg / tx；wy 仅 128k
+ *   vkeys/tx(v2)     ✅ tx 低音质；对 VIP 歌会回试听流（响应自述「音乐试听」）
+ *   vkeys/tx-link    ✅ tx 高音质真无损，但会自动风控（cookie 异常）
  */
+
+/** 网易云外链：无需任何 key，但受会员/版权限制（部分歌曲直接回 HTML） */
+const WY_OUTER_GATEWAY = {
+  name: 'wyouter', mode: 'redir',
+  url: (id) => `https://music.163.com/song/media/outer/url?id=${enc(id)}.mp3`,
+}
+
+/**
+ * 星海后端（yy.zddyr.top / zrcdy.dpdns.org）。
+ * 与其它网关不同，它要「歌名 + 歌手 + 时长」才能稳定定位，所以 url 收第三个参数 meta。
+ * 返回 {code:200,url}；tx 需卡密（未接），mg 取流失败（未接）。
+ */
+function xinghaiGateway(name, base) {
+  return {
+    name, mode: 'json',
+    url: (id, q, meta) => {
+      const p = [['source', meta.source], ['songmid', id], ['quality', q]]
+      if (meta.name) p.push(['name', meta.name])
+      if (meta.singer) p.push(['singer', meta.singer])
+      if (meta.interval != null) p.push(['interval', meta.interval])
+      return `${base}?` + p.map(([k, v]) => `${k}=${enc(v)}`).join('&')
+    },
+  }
+}
+
+/**
+ * HYWmusic 公益版后端（103.79.184.97）。
+ * 参数名与其它网关不同（platform + 各平台自己的 id 字段），卡密是脚本里公开的。
+ */
+const HYW_KEY = '6C1F-53W0-GRKI-EVFG'
+function hywGateway(name) {
+  return {
+    name, mode: 'json',
+    url: (id, q, meta) => {
+      const idField = { wy: 'songmid', tx: 'songmid', kw: 'songmid', kg: 'hash', mg: 'copyrightId' }[meta.source] || 'songmid'
+      const p = [['platform', meta.source], ['source', meta.source], [idField, id], ['quality', q], ['key', HYW_KEY]]
+      if (meta.name) p.push(['songname', meta.name])
+      return `https://103.79.184.97/api/music/url?` + p.map(([k, v]) => `${k}=${enc(v)}`).join('&')
+    },
+  }
+}
+
+/** QQ 落月 API：mid + **数字**音质（6/8/10），返回 {data:{url}}。
+ *
+ * 实测（2026-11）：v2 对周杰伦这类 VIP 歌，三个音质**全部返回同一个试听流**
+ * （`quality: "音乐试听"`、`kbps: 28`、0.92MB），所以必须靠响应自述拦下。
+ * v3 的 `song/link` 接口反而给真无损（`kbps: 1644`），但请求几次后会回
+ * 「cookie 异常：账号被风控无法获取」—— 所以它只能当第二手，且失败时不应拖累降级判断。
+ */
+const LUOYUE_QUALITY = { '128k': 6, '320k': 8, flac: 10, flac24bit: 10 }
+const LUOYUE_GATEWAY = {
+  name: 'vkeys/tx', mode: 'json',
+  url: (id, q) => `https://api.vkeys.cn/v2/music/tencent/geturl?mid=${enc(id)}&quality=${LUOYUE_QUALITY[q] || 6}`,
+}
+const LUOYUE_LINK_GATEWAY = {
+  name: 'vkeys/tx-link', mode: 'json',
+  url: (id, q) => `https://api.vkeys.cn/music/tencent/song/link?mid=${enc(id)}&quality=${LUOYUE_QUALITY[q] || 6}`,
+}
+
 const DIRECT_GATEWAY = {
-  // 网易云：type=flac 返回 JSON {code,data:{url}}，拿到 m801.music.126.net 真链。
+  // 网易云：type=flac 返回 JSON {code,data:{url}}，拿到真链。
   //
   // ⚠️ 不要加 musicapi.haitangw.net/music/wy.php 这条「备用主机」：
-  // 1.3.3 加过，用户实测**歌曲只剩几十秒**（该接口返回的是
-  // iot1xx.music.126.net/.../ymusic/... 的试听片段，不是全曲）。
+  // 1.3.3 加过，用户实测**歌曲只剩几十秒**（该接口返回的是试听片段）。
   // 上游宕机时宁可报「未取到链接」，也不要把截断的音频丢给播放器。
   wy: [
     { name: 'haitangw/wy', mode: 'json',
       url: (id, q) => `https://yinyue.haitangw.net/wy/wy.php?type=flac&id=${enc(id)}&level=${LEVEL_PARAM[q]}` },
+    // 官方外链：部分歌直接回 audio，无版权/下架则 302 到 /404（这种情况按**无此歌**处理，
+    // 不能算「主机挂了」—— 否则两首拿不到就会把整台网易云熔断 60s）
+    WY_OUTER_GATEWAY,
+    // 公益版后端：实测只有 128k 可用，flac 会明确报「所有音源均获取失败」
+    hywGateway('hyw/wy'),
   ],
-  // 酷我：musicapi 网关返回 302 到 car-er.kuwo.cn，LX 播放器会跟随
+  // 酷我：musicapi 返回 302 到 car-er.kuwo.cn；zddyr 返回带签名的 kwplay.php；
+  // hyw 返回酷我链（实测 128k 是 ogg，320k/flac 是 x-flac，都能播）。
   kw: [
     { name: 'musicapi/kw', mode: 'redir',
       url: (id, q) => `https://musicapi.haitangw.net/music/kw.php?type=mp3&id=${enc(id)}&level=${LEVEL_PARAM[q]}` },
+    xinghaiGateway('zddyr/kw', 'https://yy.zddyr.top/lx/api/'),
+    hywGateway('hyw/kw'),
   ],
-  // 咪咕上游全站失效（对所有歌曲都回「歌曲下线」），保留配置以便恢复后自动生效
+  // 咪咕：官方上游全站失效（haitangw 回「歌曲下线」/404）。
+  // hyw 走的是 103.79.184.97 的代理，曾实测 128k 能出真音频，但 2026-11-11
+  // 复查时它对该歌回「咪咕所有音源均获取失败」—— 保留配置，恢复后自动生效。
   mg: [
     { name: 'haitangw/mg', mode: 'json',
       url: (id, q) => `https://yinyue.haitangw.net/mg/migu.php?type=mp3&id=${enc(id)}&level=${LEVEL_PARAM[q]}` },
+    hywGateway('hyw/mg'),
+  ],
+  // QQ 也升格为「直连」：vkeys 用 tx 自己的 songmid 取链，错歌风险同样为 0，
+  // 没必要再靠跨源去拿（跨源一旦搜不到，QQ 就彻底播不了）。
+  tx: [
+    LUOYUE_GATEWAY,
+    LUOYUE_LINK_GATEWAY,
+    hywGateway('hyw/tx'),
+  ],
+  // 酷狗：星海后端直接按 hash 取链，返回 fsandroid.tx.kugou.com 的**带过期时间**直链
+  // （所以绝不能在脚本里缓存，每次都现取）。hyw 是同一批资源的另一条路径。
+  kg: [
+    xinghaiGateway('zddyr/kg', 'https://yy.zddyr.top/lx/api/'),
+    xinghaiGateway('zrcdy/kg', 'https://zrcdy.dpdns.org/lx/api/api.php'),
+    hywGateway('hyw/kg'),
   ],
 }
 
@@ -209,10 +306,7 @@ const DIRECT_GATEWAY = {
  * 有错歌风险，只在前面的路都走不通时兜底。
  */
 const FALLBACK_GATEWAY = {
-  wy: [
-    { name: 'haitangw/wy-302', mode: 'redir',
-      url: (id, q) => `http://yinyue.haitangw.net/wy/wy.php?type=mp3&id=${enc(id)}&level=${LEVEL_PARAM[q]}` },
-  ],
+  wy: [],
   // QQ 的降级网关。同样不要加 musicapi 那条镜像，理由见上面 wy 的注释。
   tx: [
     { name: 'haitangw/qq_kw', mode: 'text',
@@ -238,7 +332,7 @@ const FALLBACK_GATEWAY = {
  *        酷狗（需 kg_music token，IP 被 Access Deny）、咪咕（DNS 无解析）。
  */
 const CROSS_SOURCE_ORDER = {
-  wy: [],           // 网易云直连已足够，且无处可搜
+  wy: ['tx'],       // 网易云直连几乎全挂（haitangw 404 / 外链受版权限制）→ 拿 QQ 真链
   tx: ['wy'],
   kw: ['wy', 'tx'],
   kg: ['wy', 'tx'],
@@ -548,6 +642,22 @@ function targetInfo(info) {
   }
 }
 
+/**
+ * 给「需要歌名/歌手/时长」的网关（星海后端、HYWmusic）准备参数。
+ *
+ * 为什么不直接传 target：那些人不用数组（`singer` 传 `[{name}]` 上去是 `[object Object]`），
+ * 也不能带引号 —— 直接归一化成「中文逗号分隔的纯字符串 + 整数秒」。
+ */
+function gwMeta(target, source) {
+  const names = normSingers(target && target.singer)
+  return {
+    source,
+    name: (target && target.name) || '',
+    singer: names.join(','),
+    interval: target && target.interval != null ? target.interval : '',
+  }
+}
+
 const SEARCH_API = {
 wy: {
     name: '网易云',
@@ -604,6 +714,16 @@ async function searchVerified(target, platform, deadline) {
 
   let list = []
   try { list = api.parse(j) || [] } catch { return null }
+
+  // 网易云搜索接口现在**几乎不返回原版**：实测搜「晴天 周杰伦」limit=50 的 50 条里
+  // 没有一条是「晴天 / 周杰伦 / 269s」（首条是「晴天(原唱 周杰伦) / RyaVocal / 271s」）。
+  // 而 `/api/song/detail` **未登录也能按 id 拿完整元信息**。
+  // 所以先用搜索结果的前几条 id 去换元信息，让三重校验拿真实数据去判，
+  // 不再依赖搜索结果自带的字段。换不到就退回原字段，不会变差。
+  if (platform === 'wy' && list.length) {
+    const refined = await enrichWy(list, deadline)
+    if (refined) list = refined
+  }
   if (!list.length) return null
 
   const rejects = []
@@ -620,6 +740,37 @@ async function searchVerified(target, platform, deadline) {
 
 if (best) return { hit: best, rejects }
   return { hit: null, rejects }
+}
+
+/**
+ * 用 `/api/song/detail` 把搜索结果的前几条 id 换成「平台自己的真实歌名/歌手/时长」。
+ * 失败（网络/格式/超时）就返回 null，调用方继续用原字段。
+ */
+async function enrichWy(list, deadline) {
+  const top = list.filter((x) => x && x.id).slice(0, 10)
+  if (!top.length) return null
+  const remain = deadline - Date.now()
+  if (remain <= 1500) return null
+  const url = `https://music.163.com/api/song/detail?ids=[${top.map((x) => enc(x.id)).join(',')}]`
+  const host = hostOf(url)
+  if (isTripped(host)) return null
+  const res = await fetchUrl(url, Math.min(SEARCH_TIMEOUT, remain), { Referer: 'https://music.163.com/', 'User-Agent': 'Mozilla/5.0' })
+  if (res.err || res.statusCode !== 200 || !res.body) return null
+  let j
+  try { j = JSON.parse(res.body) } catch { return null }
+  const songs = (j && j.songs) || []
+  if (!songs.length) return null
+  const byId = new Map()
+  for (const s of songs) {
+    byId.set(String(s.id), {
+      name: s.name,
+      singer: (s.artists || s.ar || []).map((a) => a.name),
+      interval: s.duration ? Math.round(s.duration / 1000) : null,
+      id: String(s.id),
+    })
+  }
+  // 详情里没返回的条目保留搜索结果原样，继续参与校验
+  return list.map((x) => (x && byId.get(String(x.id))) || x)
 }
 
 /**
@@ -660,10 +811,33 @@ function pickUrlFromJson(text) {
     try { j = JSON.parse(text) } catch { return null }
   }
   if (!j || typeof j !== 'object') return null
-  for (const c of [j.url, j.data && j.data.url, j.data, j.play_url, j.src, j.link]) {
+  // 注意：`j.link` 不在优先列——落月等 API 会同时给 `url`（直链）和
+  // `link`（i.y.qq.com 的**播放页**），取错了就是把 HTML 丢给播放器。
+  for (const c of [j.url, j.data && j.data.url, j.data, j.play_url, j.src]) {
     if (isValidUrl(c)) return c
   }
+  // 兜底才考虑 link，且必须不是网页
+  if (isValidUrl(j.link) && !isWebPage(j.link)) return j.link
   return null
+}
+
+/**
+ * 「转发型」地址：URL 长得像音频（.mp3）但实际是服务端再跳一次的入口。
+ * 实测 `music.163.com/song/media/outer/url?id=x.mp3` 对无版权的歌会 302 到 /404，
+ * 只看扩展名就返回，等于把一个 HTML 404 页丢给播放器。
+ */
+function isForwarder(u) {
+  return /\/song\/media\/outer\/url/i.test(String(u || ''))
+}
+
+/** 看地址像不像一个网页（HTML 占位页 / 歌曲页 / 404 页），而不是音频 */
+function isWebPage(u) {
+  const s = String(u || '')
+  if (AUDIO_EXT.test(s)) return false
+  if (/\.(html?|php|aspx?)(\?|$)/i.test(s)) return true
+  if (/\/404(\?|$)/i.test(s)) return true
+  if (/i\.y\.qq\.com\/v8\/playsong|y\.qq\.com\/n\/ryqq|music\.163\.com\/(song|#)/i.test(s)) return true
+  return false
 }
 
 function pickUrlFromText(text) {
@@ -672,6 +846,41 @@ function pickUrlFromText(text) {
   if (isValidUrl(t)) return t
   const m = t.match(/https?:\/\/[^\s"'<>\\]+/i)
   return m && isValidUrl(m[0]) ? m[0] : null
+}
+
+/**
+ * 从 JSON 里把「音质不可靠」的信号挖出来。
+ *
+ * 落月（vkeys）对 VIP 歌会把 **128k/320k/flac 全部返回同一个 `RS02...` 试听流**，
+ * 并在响应里写得很明白：`quality: "音乐试听"` `kbps: 28` `size: 0.92MB`
+ * —— 但 URL、code、audio/* 全看起来正常，只有体积闸门能拦到。
+ * 所以先把响应自己声明的属性取出来，让闸门按「响应声明的大小/码率」而不是按请求的音质去比。
+ */
+function pickDeclaredQuality(text) {
+  if (typeof text !== 'string') return null
+  let j
+  try { j = JSON.parse(text) } catch { return null }
+  const d = (j && (j.data || j)) || {}
+  const out = {}
+  if (typeof d.quality === 'string') out.label = d.quality
+  if (d.kbps != null && Number.isFinite(Number(d.kbps))) out.kbps = Number(d.kbps)
+  if (d.size != null) {
+    const m = /^([\d.]+)\s*([kmg]?)b?/i.exec(String(d.size))
+    if (m) out.bytes = Number(m[1]) * Math.pow(1024, 'kmg'.indexOf((m[2] || '').toLowerCase()) + 1)
+  }
+  return Object.keys(out).length ? out : null
+}
+
+/**
+ * 响应自己都说这是试听（「音乐试听」/ 码率低于 64k）就不要再花一次 Range 请求验证了。
+ * 注意只拿「有明确证据」的字段判断：仅仅体积偏小不算 —— 有些真实文件确实很小。
+ */
+function declaredPreview(declared, quality) {
+  if (!declared) return null
+  if (declared.label && /试听|preview|trial/i.test(declared.label)) return `响应自述为「${declared.label}」`
+  if (declared.kbps && declared.kbps < 48 && quality !== '128k') return `响应自述码率仅 ${declared.kbps}kbps`
+  if (declared.kbps && declared.kbps < 24) return `响应自述码率仅 ${declared.kbps}kbps`
+  return null
 }
 
 /* ============================ 网关 ============================ */
@@ -739,20 +948,44 @@ async function checkNotPreview(url, intervalSec, quality, deadline) {
   if (total < nominal * 0.35) {
     return { ok: false, reason: `疑似试听片段(实际 ${(total / 1048576).toFixed(1)}MB，${sec}s 的${quality}至少该有 ${(nominal / 1048576).toFixed(1)}MB)` }
   }
+  // 判为完整后也验一下「它真的是音频」：网易云官方外链对无版权的歌会 302 到
+  // music.163.com/404（那个页 200 + HTML），而 Range GET 拿到的文件名是 /404，
+  // 没有扩展名 —— 只看体积会被放过去，播放器却播不了。
+  const ct = String(res.contentType || '')
+  if (ct && !/^audio\//i.test(ct) && !/octet-stream/i.test(ct) && !AUDIO_EXT.test(url)) {
+    return { ok: false, reason: `不是音频(${ct.slice(0, 24)})` }
+  }
   return { ok: true }
 }
+
+/** 链接本身就指向音频文件（不靠 content-type 也能断定）*/
+const AUDIO_EXT = /\.(mp3|flac|m4a|aac|ogg|opus|wav)(\?|#|$)/i
+
+/**
+ * 去重：同一首歌会被多条网关返回**完全相同的链接**（现在 tx/kg/mg 经常都落到
+ * 同一份酷我资源上），降级重试时也会重复入栈。没必要再花一次 Range 请求去验它。
+ */
+const VERIFIED = new Map()
+const VERIFIED_TTL = 120000
+
+function seenUrl(url) {
+  const now = Date.now()
+  for (const [k, t] of VERIFIED) if (now - t > VERIFIED_TTL) VERIFIED.delete(k)
+  return VERIFIED.has(url)
+}
+function markUrl(url) { VERIFIED.set(url, Date.now()) }
 
 /**
  * 试一个网关。
  * 失败时返回 { url: null, reason }，reason 区分「网络挂了」和「此歌无版权」，
  * 便于决定是换网关还是换平台。
  */
-async function tryGateway(gw, id, quality, deadline, interval) {
+async function tryGateway(gw, id, quality, deadline, interval, meta) {
   const remain = deadline - Date.now()
   if (remain <= 500) return { url: null, reason: '预算耗尽' }
 
   let url
-  try { url = gw.url(id, quality) } catch { return { url: null, reason: 'URL 构造失败' } }
+  try { url = gw.url(id, quality, meta || {}) } catch { return { url: null, reason: 'URL 构造失败' } }
 
   // 熔断中的主机直接跳过：继续发只是把预算白烧在一个已知宕机上
   const host = hostOf(url)
@@ -760,6 +993,17 @@ async function tryGateway(gw, id, quality, deadline, interval) {
 const fail = (reason) => { noteFail(host); return { url: null, reason } }
   // ok(链接, 原因)：成功就清掉该主机的熔断计数，并返回**实际要用的**链接
   const ok = (u, reason) => { noteOk(host); return { url: u, reason } }
+
+  // ① 链接本身就是音频文件：没必要再请求一次（LX 播放器自己会发 Range GET）
+  //    例外：已知的转发型网关（/song/media/outer/url 这类），扩展名是假的，
+  //    它可能在服务端把无版权的歌 302 到 /404，必须自己跟一次才能确认。
+  if (AUDIO_EXT.test(url) && !isForwarder(url)) {
+    markUrl(url)
+    return ok(url, '直链')
+  }
+
+  // ② 已经验过的同一条链（其它网关给出的一样）直接复用结论
+  if (seenUrl(url)) return { url: null, reason: '重复链接（本轮已验过）' }
 
   let res = await fetchUrl(url, Math.min(REQ_TIMEOUT, remain))
 
@@ -777,10 +1021,10 @@ const fail = (reason) => { noteFail(host); return { url: null, reason } }
     if (!res.location) return fail('重定向但无 Location')
     const loc = resolveLocation(res.location, url)
     // 排掉跳到网站首页/占位页的情况
-    if (/\.(html?|php)$/i.test(loc) && !/music|audio|song|stream|\.mp3|\.flac|\.m4a/i.test(loc)) {
-      return fail('重定向到网页而非音频')
-    }
+    if (isWebPage(loc)) return fail('重定向到网页而非音频')
     if (!isValidUrl(loc)) return fail('重定向目标非法')
+    // 官方外链把「没版权/已下架」表现为 302 到 /404：这是**这首歌**拿不到，不是主机挂了
+    if (/\/404(\?|$)/.test(loc) || /\/404\b/.test(loc)) return { url: null, reason: '网关无此歌(302→404)' }
     // 跳到 .php 网关地址的一律先自己跟完，确认真能拿到音频。
     // 这些网关时好时坏（实测 wy.php 302 有时直接转出 nginx 404），
     // 把没验证过的地址丢给播放器，客户端只会报 onError，
@@ -788,10 +1032,14 @@ const fail = (reason) => { noteFail(host); return { url: null, reason } }
 if (isGatewayAddress(loc)) {
       const playable = await isPlayable(loc, deadline)
       if (!playable.ok) return fail(`302 目标不可播(${playable.reason})`)
-      return ok(loc, `302 目标预检通过(${playable.reason})`)
+      return ok(url, `302 目标预检通过(${playable.reason}) · 交给播放器跟随`)
     }
     const full2 = await checkNotPreview(loc, interval, quality, deadline)
     if (!full2.ok) return fail(full2.reason)
+    // 转发型入口（如 media/outer/url）返回**它验过的那个最终地址**：
+    // 实测 LX 自己再去开一次该入口会直接 404，浏览器/测试脚本却不会 ——
+    // 把已经拿到手的真链给播放器，就完全绕开这个不确定性。
+    if (isForwarder(url)) return ok(loc, '已跟随转发入口并验证')
     return ok(loc, '302 跳转(LX 播放器会跟随)')
   }
 
@@ -806,6 +1054,7 @@ if (res.statusCode < 200 || res.statusCode >= 300) {
 if (/^audio\//i.test(String(res.contentType || ''))) {
     const full = await checkNotPreview(url, interval, quality, deadline)
     if (!full.ok) return fail(full.reason)
+    markUrl(url)
     return ok(url, '网关内联转发')
   }
 
@@ -829,6 +1078,10 @@ if (/^audio\//i.test(String(res.contentType || ''))) {
     return { url: null, reason: '响应里没有可用的 URL' }
   }
 
+  // 响应自带「这是试听」的证据就不必再跑一次 Range 了（落月对 VIP 歌就是这样）
+  const pretend = declaredPreview(pickDeclaredQuality(res.body), quality)
+  if (pretend) return fail(`疑似试听片段(${pretend})`)
+
 if (isGatewayAddress(u0)) {
     const playable = await isPlayable(u0, deadline)
     if (!playable.ok) return fail(`预检不可播(${playable.reason})`)
@@ -841,7 +1094,7 @@ if (isGatewayAddress(u0)) {
 
 /** 是不是一个「自己不做代理、只负责跳转」的 .php 网关地址 */
 function isGatewayAddress(u) {
-  return /\/(wy|qq_kw|kw|kg_song_kw|migu|musicapi)\.php(\?|$)/i.test(u)
+  return /\/(wy|qq_kw|kw|kg_song_kw|migu|musicapi|kwplay)\.php(\?|$)/i.test(u) || /\/lx\/api\//i.test(u)
 }
 
 /* ============================ 主流程 ============================ */
@@ -951,7 +1204,7 @@ const ownId = ID_PICKER[source] ? ID_PICKER[source](mi) : null
   // 同一平台的多个直连网关互不依赖，并发取，先成功者胜。
 if (ownId && directs.length) {
     attempted = true
-    const results = await Promise.all(directs.map((gw) => tryGateway(gw, ownId, quality, deadline, target.interval)))
+    const results = await Promise.all(directs.map((gw) => tryGateway(gw, ownId, quality, deadline, target.interval, gwMeta(target, source))))
     for (let i = 0; i < directs.length; i++) {
       const r = results[i]
       if (r.url) { log.push(`✓ ${source} 直连 ${directs[i].name} (${r.reason})`); return { url: r.url, log, degradeWorthy: false } }
@@ -999,7 +1252,7 @@ if (!others.length || deadline - Date.now() < 3000) {
 const targetGws = [...(DIRECT_GATEWAY[other] || []), ...(FALLBACK_GATEWAY[other] || [])]
       if (!targetGws.length) { out.log.push(`✗ ${source}→${other} 命中「${r.hit.name}」但该平台无取链网关`); continue }
       attempted = true
-      const gs = await Promise.all(targetGws.map((gw) => tryGateway(gw, r.hit.id, quality, deadline, target.interval)))
+      const gs = await Promise.all(targetGws.map((gw) => tryGateway(gw, r.hit.id, quality, deadline, target.interval, gwMeta(target, other))))
       for (const g of gs) if (!g.url) reasons.push(g.reason)
       for (let j = 0; j < targetGws.length; j++) {
         if (gs[j].url) {
@@ -1018,7 +1271,7 @@ const fallbackTask = (async () => {
     const out = { url: null, log: [] }
     if (!ownId || !fallbacks.length) return out
     attempted = true
-    const gs = await Promise.all(fallbacks.map((gw) => tryGateway(gw, ownId, quality, deadline, target.interval)))
+    const gs = await Promise.all(fallbacks.map((gw) => tryGateway(gw, ownId, quality, deadline, target.interval, gwMeta(target, source))))
     for (let i = 0; i < fallbacks.length; i++) {
       if (gs[i].url) { out.log.push(`✓ ${source} 降级 ${fallbacks[i].name} (${gs[i].reason})`); out.url = gs[i].url; break }
     }

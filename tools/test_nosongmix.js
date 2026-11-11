@@ -57,10 +57,10 @@ const CASES = [
   },
   {
     tag: 'D2 本平台 id 有效时不看时长',
-    desc: 'interval 同样差 20s，但本平台 songmid 有效。ownId 本身就代表这首歌，取本平台链正确，时长只用于跨源校验，不该否决它',
+    desc: 'interval 同样差 20s，但本平台 songmid 有效。ownId 本身就代表这首歌，取本平台链正确，时长只用于跨源校验，不该否决它。v1.3.9 起 tx 有本平台网关（落月 / HYWmusic），链不再是「酷我降级」的产物，所以只要求拿到任意可播链接',
     info: { name: '晴天', singer: [{ name: '周杰伦' }], interval: 289, songmid: '0039MnYb0qxYhV' },
     source: 'tx',
-    expect: /kuwo\.cn/,
+    expect: /^https?:\/\//,
   },
   {
     tag: 'E 无歌名无法校验',

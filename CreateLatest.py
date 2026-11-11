@@ -11,7 +11,7 @@ if hasattr(sys.stdout, 'reconfigure'):
 
 # Latest Version Numbers
 VERSIONS: Dict[str, str] = {
-    'aggregator': '1.3.8',
+    'aggregator': '1.3.9',
     'changqing': '1.3.0',
     'feichangdao': '5',
     'fish': '1.9.0',

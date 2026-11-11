@@ -14,7 +14,7 @@ https://raw.githubusercontent.com/BeYourDreams/lx-music-source/main/aggregator/l
 | | |
 |---|---|
 | 可用平台 | `wy` 网易云 / `tx` QQ / `kw` 酷我 / `kg` 酷狗 / `mg` 咪咕 |
-| 实测通过 | 历史 **20/20**（5 平台 × 4 音质）；当前 **4/20** —— `haitangw.net` 网关已下线，只剩 kw（见下方网关实测表） |
+| 实测通过 | 历史 **20/20**（5 平台 × 4 音质）；v1.3.9 当前 **8/10**（5 平台 × 128k/flac，`--verify` 验过真音频）：wy / kw / kg 两档全过，tx 128k、mg 128k 失败 |
 | 防错歌 | 跨源后强制校验歌名 + 歌手 + 时长，宁可报错也不播错歌 |
 | 保播放 | 高音质失败时自动逐级降到 320k/128k 再试，而不是直接报错 |
 | 纯净度 | 手写源码，无混淆、无 eval、不做 `md5` 校验（不受 CRLF/LF 影响） |
@@ -120,7 +120,7 @@ python UpdateInstalled.py --probe     # 额外对生效中的源跑一次实网�
 | 源 | 版本 | 通过 | 状态 | 说明 |
 |---|---|---|---|---|
 | **huibq** | 1.2.0 | **10/10** | ✅ **全平台唯一可用** | 后端 `lxmusicapi.onrender.com`（上游 [Huibq/keep-alive](https://github.com/Huibq/keep-alive) 用 Actions 每 3 天保活）。**但 flac 请求实际返回的是酷我 128k `audio/mpeg`**，标注音质不可信；且**一碰就封 IP**，见下 |
-| **aggregator** | 1.3.8 | 2/10 | ⚠️ **本仓库自研，kw 可用** | 不 eval 任何混淆代码；跨源降级 + 三重校验防错歌 + 音质自动降级。**当前上游 `haitangw.net` 全站 404，只剩 kw 可用**（详见下方网关实测表） |
+| **aggregator** | 1.3.9 | 8/10 | ✅ **本仓库自研，可审计** | 不 eval 任何混淆代码；v1.3.9 接入 zddyr / zrcdy / HYWmusic / 落月QQ，wy/kw/kg 两档全过、tx 与 mg 各剩一档失败。**代价是引入了第三方后端**（见下方网关实测表） |
 | **juhe** | 3 | 4/10 | ⚠️ 部分可用 | `init.conf` 现在返回 200（早前的 429 已恢复）；tx / kw 能取到链，wy / kg / mg 失败 |
 | qdy | 9.3 | 0/10 | ❌ 失效 | 网关 `175.27.166.236` 全线崩：wy 404 / tx 403 / kw 410 / kg 返 JSON / mg 404 |
 | changqing | 1.3.0 | 0/10 | ❌ 失效 | 全部走 `yinyue.haitangw.net`，裸 404 |
@@ -300,6 +300,10 @@ node tools/e2e.js --verify --allq aggregator
 # 防错歌回归：同名/同歌手/同时长差的陷阱用例
 node tools/test_nosongmix.js
 
+# 候选网关探测（改网关表之前先跑这个）
+node tools/probe_candidates.js wy tx kw kg mg
+node tools/probe_candidates.js --allq
+
 # 检查 .php 网关链接的重定向链
 node tools/probe_redirect.js "http://example.com/xxx.php?type=mp3&id=xxx"
 
@@ -331,6 +335,8 @@ node tools/probe_search.js
 | `tools/probe_hash.js` | 校验 grass/flower 的 md5 签名（`md5(脚本.trim())`） |
 | `tools/probe_gw.js` | 网关能力矩阵：探测各网关支持的平台/type/level 组合与返回模式（JSON / 302 / 文本） |
 | `tools/test_nosongmix.js` | **防错歌回归测试**：构造同名/同歌手/同时长差的陷阱用例，验证跨源后拿到的仍是同一首歌 |
+| `tools/probe_candidates.js` | **候选网关探测**：改 aggregator 的网关表之前，先逐平台逐音质验证返回模式/是否全曲/要不要鉴权 |
+| `tools/probe_size.js` | 音频体积探测：给 URL 发 Range 请求读 `Content-Range` 总大小，用来校准试听片段闸门 |
 | `tools/probe_kw.js` | 探测酷我旧搜索接口的字段与相关性（结论：已排除该搜索源） |
 | `tools/probe_search.js` | 搜索接口**可用性矩阵**：横向跑 8 个候选接口，看哪些能用、哪些被拒 |
 | `tools/probe_search_fields.js` | 搜索接口**定位质量验证**：已选定的接口能否区分「深情版 vs 原版」并提取到正确 id |
@@ -482,6 +488,35 @@ v1.3.0 用两条规则同时满足：
 > 所以 wy/tx/kg/mg 暂时都取不到链（`musicapi.haitangw.net` 的 kw 仍正常）。
 > 脚本据此做了两件事：裸 404 **不当作「这首歌没版权」**（不去换音质空降级），
 > 并对该主机熔断 60s —— 失效的网关会在几十毫秒内直接跳过，而不是每首歌都等它超时。
+
+### v1.3.9 接替的网关（2026-11-11 逐平台实测）
+
+`node tools/probe_candidates.js` 的结果（`songs_wellknown`《晴天》周杰伦，128k / flac 两档）：
+
+| 后端 | wy | tx | kw | kg | mg | 说明 |
+|---|---|---|---|---|---|---|
+| `yy.zddyr.top/lx/api/`（星海主后端） | ❌ 取址失败 | ❌ 需卡密 | ✅ | ✅ | ❌ 取流失败 | 要「歌名+歌手+时长」才稳；返回 JSON `{code:200,url}` |
+| `zrcdy.dpdns.org/lx/api/api.php`（星海备后端） | ❌ | ❌ 需卡密 | ⚠️ 转出地址 404 | ✅ | ❌ | 只当 kg 的第二手 |
+| `103.79.184.97/api/music/url`（HYWmusic） | ⚠️ 仅 128k | ✅ | ✅（128k 是 ogg） | ✅ | ⚠️ 时好时坏 | 公开卡密 `6C1F-53W0-GRKI-EVFG` |
+| `api.vkeys.cn`（落月 QQ） | — | ✅ | — | — | — | VIP 歌会回**试听流**（`quality:"音乐试听"`, 28kbps） |
+| `musicapi.haitangw.net/music/kw.php` | — | — | ✅ | — | — | 旧网关里唯一还活的 |
+
+由此定下的策略（`DIRECT_GATEWAY` / `FALLBACK_GATEWAY`）：
+
+- **tx / kg 升为一等公民**：它们现在都有「用本平台自己的 id 取本平台资源」的网关，错歌风险为 0，
+  不再依赖跨源搜歌
+- **wy 加了跨源兜底**：网易云官方外链对周杰伦这类歌一律 302 到 `/404`（实测 4 首全挂），
+  所以拿不到就按歌名+歌手去 QQ 取真链
+- **mg 仍只剩半条命**：官方全站失效，HYWmusic 的咪咕代理时好时坏
+
+本次同时修掉的三个坑（都会让「能取到链但播不出来」）：
+
+1. **落月把 VIP 歌的 128k/320k/flac 全返回同一个试听流**，URL 和 `content-type` 看着都正常。
+   现在除了原有的体积闸门，还会读响应自述的 `quality`/`kbps`，发现是「音乐试听」直接判失败
+2. **`pickUrlFromJson` 会把 `link` 字段（`i.y.qq.com` 播放页）当音频返回** → 现在 `url` 优先，
+   `link` 只在不是网页时才考虑
+3. **`media/outer/url` 这类转发入口**：实测 LX 自己再去开一次会 404，浏览器却不会。
+   现在脚本先跟完 302 拿到真链再返回，把不确定性挡在播放器之外
 
 搜索接口只选相关性可靠的两个：
 
