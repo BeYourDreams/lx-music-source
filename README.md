@@ -131,8 +131,9 @@ python UpdateInstalled.py --probe     # 额外对生效中的源跑一次实网�
 | ikun | 22 | 0/4 | ❌ 失效 | `api.ikunshare.com` 域名已删除（DNS 无解析）；且声明了非白名单的 `git` 源被 LX 丢弃 |
 | lx | 6 | 0/10 | ❌ 失效 | 不注册 `request` 处理器；依赖 `88.lxmusic.中国` 服务端，全部 `param error` |
 
-> 📌 **现在只有 `huibq` 能全平台播**，代价是音质虚标 + 频率封禁（见下条）。
-> `aggregator` 仍是你唯一能审计源码的选择，但它当前只能出酷我。
+> 📌 **现在 `huibq` 和上游带来的 `fish` 都能全平台播**（wy/kg/mg 都是跨源到酷我，音质上限 320k）。
+> `huibq` 一碰就封 IP（见下条），`fish` 本次未遇到限流，两个都不是源码可审计的源；
+> `aggregator` 仍是你唯一能读源码的选择，但它当前只能出酷我。
 > 其余源的上游服务均已下线，无法通过修改本地脚本修复。
 
 ### 🚦 huibq 的频率封禁（重要）
@@ -185,7 +186,7 @@ https://raw.githubusercontent.com/BeYourDreams/lx-music-source/main/changqing/la
 https://raw.githubusercontent.com/BeYourDreams/lx-music-source/main/sixyin/latest.js
 ```
 
-### 上游新增源（来自 [pdone/lx-music-source](https://github.com/pdone/lx-music-source)，本仓库未逐个实测）
+### 上游新增源（来自 [pdone/lx-music-source](https://github.com/pdone/lx-music-source)）
 ```
 https://raw.githubusercontent.com/BeYourDreams/lx-music-source/main/feichangdao/latest.js
 https://raw.githubusercontent.com/BeYourDreams/lx-music-source/main/fish/latest.js
@@ -200,6 +201,22 @@ https://raw.githubusercontent.com/BeYourDreams/lx-music-source/main/yuningxi/lat
 ```
 
 > 加速：把开头的 `https://raw.githubusercontent.com/` 换成 `https://gh-proxy.org/raw.githubusercontent.com/` 即可。
+
+2026-11-11 逐个实测（`--verify` 验过音频的标 ✅；`*` 仅确认取到链接，未跟音频）：
+
+| 源 | 版本 | 通过 | 可用情况 |
+|---|---|---|---|
+| **fish** | 1.9.0 | **10/10 ✅** | 全平台。wy/kg/mg 实际取的是酷我链，tx 是 QQ m4a；本次未遇到限流 |
+| xinglan | 4.0.2 | 8/10 ✅ | wy/tx/kw/kg 可用；wy/flac 超 20s、mg/flac 失败 |
+| helloworld | 260925 | 8/10 ✅ | wy/kw/kg/mg 可用；tx 两档返回 `application/octet-stream` |
+| jiexiang | 2.3.0 | 6/10 ✅ | tx/kw/kg 可用；wy 返回 HTML、mg 全失败 |
+| hyw | 1.2.0 | 5/10 ✅ | wy/128k、kg 两档、mg/128k、kw/128k 可用（kw 给的还是 ogg） |
+| xinghai | 3.2.18 | 4/10 | 仅 kw/kg* |
+| qingliang | 2.1.0 | 3/8 | 仅 tx/128k、kw 两档* |
+| feichangdao | 5 | 2/10 | 仅 kw* |
+| suyin | 1 | 2/8 | 仅 kw* |
+| yuningxi | 1.2.5 | 0/10 | 全挂*；kw 还会限流（2 秒内只能 4 次） |
+| lx | 7 | 2/10 | 仅 kw*（升到 v7 后照样挂 wy/tx/kg/mg） |
 
 ### 其他源（均失效，仅供参考）
 
