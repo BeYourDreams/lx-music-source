@@ -78,7 +78,7 @@
     },
     "api.music.lerd.dpdns.org": {
       "consecutive_failures": 0,
-      "last_status": "可用"
+      "last_status": "异常"
     },
     "api.nki.pw": {
       "consecutive_failures": 0,
@@ -346,7 +346,7 @@
     "hyw": "可用",
     "ikun": "失效",
     "jiexiang": "可用",
-    "juhe": "可用",
+    "juhe": "异常",
     "lx": "失效",
     "qdy": "可用",
     "qingliang": "可用",
@@ -354,5 +354,5 @@
     "xinghai": "可用",
     "xinglan": "可用"
   },
-  "updated_at": "2026-11-11 15:30"
+  "updated_at": "2026-11-12 07:22"
 }
