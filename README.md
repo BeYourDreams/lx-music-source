@@ -112,28 +112,45 @@ python UpdateInstalled.py --probe     # 额外对生效中的源跑一次实网�
 
 ---
 
-## ⚠️ 各源可用状态（2026-09-26 实测）
+## ⚠️ 各源可用状态（2026-11-11 实测）
 
 实测方法：`node tools/e2e.js --verify`（Range GET 跟随重定向，判 `content-type: audio/*`）。
 注：LX 播放器**会**跟随重定向（只有脚本内的 `lx.request` 不跟随），所以 `.php` 网关链只要能跳到真音频就算可用。
 
-| 源 | 版本 | 可用平台 | 状态 | 说明 |
+| 源 | 版本 | 通过 | 状态 | 说明 |
 |---|---|---|---|---|
-| **aggregator** | 1.3.8 | **wy, tx, kw, kg, mg** | ⚠️ **本仓库自研，首选** | 不 eval 任何混淆代码；跨源降级 + 三重校验防错歌 + 音质自动降级。**当前上游 `haitangw.net` 全站 404，只剩 kw 可用**（详见下方网关实测表） |
-| **qdy** | 9.3 | **wy, kw** | ✅ 推荐 | tx 返回 302 到空首页(403)；kg 返回 `{"code":201}`；mg 404 |
-| **changqing** | 1.3.0 | **wy, tx, kw, kg** | ⚠️ 能播但可能错歌 | 后端会把 tx/kg 降级到酷我资源，**实测会取到同名别的歌**。想稳请用 `aggregator` |
-| **sixyin** | 1.2.1 | **wy** | ⚠️ 部分可用 | 后端 `lx.itooi.cn` 已暂停；`mobi.kuwo.cn` 403，仅网易云走官方接口存活 |
-| flower | 1 | — | ❌ 失效 | 后端 `97.64.37.235/flower/v1/*` 路由已移除（404） |
-| grass | 1 | — | ❌ 失效 | 后端 `97.64.37.235/grass/v1/*` 路由已移除（404） |
-| huanyin | 3 | — | ❌ 失效 | `music-dl.sayqz.com` 域名已删除（DNS 无解析） |
-| huibq | 1.2.0 | — | ❌ 失效 | `lxmusicapi.onrender.com` 全部 503（服务已死） |
-| ikun | 22 | — | ❌ 失效 | `api.ikunshare.com` 域名已删除（DNS 无解析）；且声明了非白名单的 `git` 源被 LX 丢弃 |
-| juhe | 3 | — | ❌ 失效 | `api.music.lerd.dpdns.org/init.conf` 返回 429，初始化即失败 |
-| lx | 6 | — | ❌ 失效 | 不注册 `request` 处理器；依赖 `88.lxmusic.中国` 服务端 |
+| **huibq** | 1.2.0 | **10/10** | ✅ **全平台唯一可用** | 后端 `lxmusicapi.onrender.com`（上游 [Huibq/keep-alive](https://github.com/Huibq/keep-alive) 用 Actions 每 3 天保活）。**但 flac 请求实际返回的是酷我 128k `audio/mpeg`**，标注音质不可信；且**一碰就封 IP**，见下 |
+| **aggregator** | 1.3.8 | 2/10 | ⚠️ **本仓库自研，kw 可用** | 不 eval 任何混淆代码；跨源降级 + 三重校验防错歌 + 音质自动降级。**当前上游 `haitangw.net` 全站 404，只剩 kw 可用**（详见下方网关实测表） |
+| **juhe** | 3 | 4/10 | ⚠️ 部分可用 | `init.conf` 现在返回 200（早前的 429 已恢复）；tx / kw 能取到链，wy / kg / mg 失败 |
+| qdy | 9.3 | 0/10 | ❌ 失效 | 网关 `175.27.166.236` 全线崩：wy 404 / tx 403 / kw 410 / kg 返 JSON / mg 404 |
+| changqing | 1.3.0 | 0/10 | ❌ 失效 | 全部走 `yinyue.haitangw.net`，裸 404 |
+| sixyin | 1.2.1 | 0/10 | ❌ 失效 | 后端 `lx.itooi.cn` 已暂停；`mobi.kuwo.cn` 403，5 平台全失败 |
+| flower | 1 | 0/10 | ❌ 失效 | 后端 `97.64.37.235/flower/v1/*` 路由已移除（404） |
+| grass | 1 | 0/2 | ❌ 失效 | 后端 `97.64.37.235/grass/v1/*` 路由已移除（404） |
+| huanyin | 3 | 0/10 | ❌ 失效 | `music-dl.sayqz.com` 域名已删除（DNS 无解析） |
+| ikun | 22 | 0/4 | ❌ 失效 | `api.ikunshare.com` 域名已删除（DNS 无解析）；且声明了非白名单的 `git` 源被 LX 丢弃 |
+| lx | 6 | 0/10 | ❌ 失效 | 不注册 `request` 处理器；依赖 `88.lxmusic.中国` 服务端，全部 `param error` |
 
-> 📌 **首选 `aggregator`**：唯一源码完全可审计、不依赖 eval、不受脚本 md5 校验影响的源。
-> `qdy` / `sixyin` 仍可用但源码是混淆的，行为不可预测。
-> 其余 7 个源的上游服务均已下线，无法通过修改本地脚本修复。
+> 📌 **现在只有 `huibq` 能全平台播**，代价是音质虚标 + 频率封禁（见下条）。
+> `aggregator` 仍是你唯一能审计源码的选择，但它当前只能出酷我。
+> 其余源的上游服务均已下线，无法通过修改本地脚本修复。
+
+### 🚦 huibq 的频率封禁（重要）
+
+后端对请求频率极敏感，**实测 20 次请求（5 平台 × 4 音质）跑到第 12 次就被封**，之后连正常的 128k 也全部失败：
+
+```json
+{"code": 1, "msg": "禁止批量下载，请规范使用！", "data": null}
+```
+
+- 所以体检时**别用 `--allq`**，也别把 `node tools/e2e.js huibq` 连着跑两遍，第一遍成功第二遍就是全红
+- 被封后只能等自动解封或换 IP（移动网：开飞行模式再关）。作者原话：反复请求会封 IP
+- 它声明的最高音质是 **320k**；只有 `tx/320k`、`kw/320k` 真拿到了 M800 链接，`flac` / `flac24bit` 一律退化成 `audio/mpeg`
+- 上游仓库里同一个音源的镜像地址（与本仓库 `huibq/latest.js` **逐字节一致**）：
+  ```any
+  https://fastly.jsdelivr.net/gh/Huibq/keep-alive/render_api.js
+  ```
+  `Music_Free/*.js` 是 MusicFree 插件，洛雪加载不了；它们的取链后端就是同一个 `/url/<source>/<id>/<quality>` + `share-v3`，搬过来无增益。
 
 ### ⚠️ Windows 克隆必读
 
@@ -148,17 +165,22 @@ python UpdateInstalled.py --probe     # 额外对生效中的源跑一次实网�
 > 代理前缀（实测均可用，均指向同一文件）：
 > `https://ghfast.top/` · `https://gh-proxy.com/` · `https://ghproxy.net/`
 
-### QDY（网易云 + 酷我，链路最稳）
+### Huibq（当前唯一全平台可用，但会频率封禁）
+```
+https://raw.githubusercontent.com/BeYourDreams/lx-music-source/main/huibq/latest.js
+```
+
+### QDY（网易云 + 酷我，网关已崩，暂不可用）
 ```
 https://raw.githubusercontent.com/BeYourDreams/lx-music-source/main/qdy/latest.js
 ```
 
-### ChangQing（QQ + 酷狗 + 酷我 + 网易云）
+### ChangQing（QQ + 酷狗 + 酷我 + 网易云，后端 404，暂不可用）
 ```
 https://raw.githubusercontent.com/BeYourDreams/lx-music-source/main/changqing/latest.js
 ```
 
-### SixYin（仅网易云）
+### SixYin（仅网易云，后端已暂停，暂不可用）
 ```
 https://raw.githubusercontent.com/BeYourDreams/lx-music-source/main/sixyin/latest.js
 ```
@@ -172,7 +194,6 @@ https://raw.githubusercontent.com/BeYourDreams/lx-music-source/main/sixyin/lates
 https://raw.githubusercontent.com/BeYourDreams/lx-music-source/main/flower/latest.js
 https://raw.githubusercontent.com/BeYourDreams/lx-music-source/main/grass/latest.js
 https://raw.githubusercontent.com/BeYourDreams/lx-music-source/main/huanyin/latest.js
-https://raw.githubusercontent.com/BeYourDreams/lx-music-source/main/huibq/latest.js
 https://raw.githubusercontent.com/BeYourDreams/lx-music-source/main/ikun/latest.js
 https://raw.githubusercontent.com/BeYourDreams/lx-music-source/main/juhe/latest.js
 https://raw.githubusercontent.com/BeYourDreams/lx-music-source/main/lx/latest.js
@@ -182,12 +203,17 @@ https://raw.githubusercontent.com/BeYourDreams/lx-music-source/main/lx/latest.js
 
 ## 在线导入 - 加速链接
 
-### Aggregator（首选）
+### Aggregator（自研，可审计）
 ```
 https://ghproxy.net/raw.githubusercontent.com/BeYourDreams/lx-music-source/main/aggregator/latest.js
 ```
 
-### QDY（推荐）
+### Huibq（当前唯一全平台）
+```
+https://ghproxy.net/raw.githubusercontent.com/BeYourDreams/lx-music-source/main/huibq/latest.js
+```
+
+### QDY
 ```
 https://ghproxy.net/raw.githubusercontent.com/BeYourDreams/lx-music-source/main/qdy/latest.js
 ```
