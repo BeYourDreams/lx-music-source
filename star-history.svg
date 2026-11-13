@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="320" viewBox="0 0 1200 320" role="img" aria-label="Star History">
 <title>Star History for pdone/lx-music-source</title>
-<desc>从 2026-11-12 到 2026-11-12，star 数从 11132 增长到 11132</desc>
+<desc>从 2026-11-12 到 2026-11-13，star 数从 11132 增长到 11171</desc>
 <style>
   .bg { fill: #ffffff; }
   .grid { stroke: #e5e7eb; stroke-width: 1; }
@@ -25,20 +25,22 @@
 </style>
 <rect class="bg" width="1200" height="320"/>
 <text class="title" x="64" y="22">pdone/lx-music-source · Star History</text>
-<text class="subtitle" x="1168" y="22" text-anchor="end">11132 ★</text>
+<text class="subtitle" x="1168" y="22" text-anchor="end">11171 ★</text>
 <line class="grid" x1="64" y1="272.00" x2="1168" y2="272.00"/>
 <line class="grid" x1="64" y1="213.00" x2="1168" y2="213.00"/>
 <line class="grid" x1="64" y1="154.00" x2="1168" y2="154.00"/>
 <line class="grid" x1="64" y1="95.00" x2="1168" y2="95.00"/>
 <line class="grid" x1="64" y1="36.00" x2="1168" y2="36.00"/>
 <text class="tlabel" x="54" y="276.00" text-anchor="end">0</text>
-<text class="tlabel" x="54" y="217.00" text-anchor="end">2925</text>
-<text class="tlabel" x="54" y="158.00" text-anchor="end">5850</text>
-<text class="tlabel" x="54" y="99.00" text-anchor="end">8775</text>
-<text class="tlabel" x="54" y="40.00" text-anchor="end">11700</text>
+<text class="tlabel" x="54" y="217.00" text-anchor="end">2950</text>
+<text class="tlabel" x="54" y="158.00" text-anchor="end">5900</text>
+<text class="tlabel" x="54" y="99.00" text-anchor="end">8850</text>
+<text class="tlabel" x="54" y="40.00" text-anchor="end">11800</text>
 <line class="axis" x1="64" y1="272" x2="1168" y2="272"/>
-<path class="area" d="M 616.00 272.00 L 616.00 47.46 L 616.00 272.00 Z"/>
-<path class="line" d="M 616.00 47.46"/>
-<circle class="dot" cx="616.00" cy="47.46" r="2.5"/>
-<text class="tlabel" x="616.00" y="294" text-anchor="middle">2026-11-12</text>
+<path class="area" d="M 64.00 272.00 L 64.00 49.36 L 1168.00 48.58 L 1168.00 272.00 Z"/>
+<path class="line" d="M 64.00 49.36 L 1168.00 48.58"/>
+<circle class="dot" cx="64.00" cy="49.36" r="2.5"/>
+<circle class="dot" cx="1168.00" cy="48.58" r="2.5"/>
+<text class="tlabel" x="64.00" y="294" text-anchor="middle">2026-11-12</text>
+<text class="tlabel" x="1168.00" y="294" text-anchor="middle">2026-11-13</text>
 </svg>
