@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="320" viewBox="0 0 1200 320" role="img" aria-label="Star History">
 <title>Star History for pdone/lx-music-source</title>
-<desc>从 2026-11-12 到 2026-11-15，star 数从 11132 增长到 11273</desc>
+<desc>从 2026-11-12 到 2026-11-16，star 数从 11132 增长到 11330</desc>
 <style>
   .bg { fill: #ffffff; }
   .grid { stroke: #e5e7eb; stroke-width: 1; }
@@ -25,7 +25,7 @@
 </style>
 <rect class="bg" width="1200" height="320"/>
 <text class="title" x="64" y="22">pdone/lx-music-source · Star History</text>
-<text class="subtitle" x="1168" y="22" text-anchor="end">11273 ★</text>
+<text class="subtitle" x="1168" y="22" text-anchor="end">11330 ★</text>
 <line class="grid" x1="64" y1="272.00" x2="1168" y2="272.00"/>
 <line class="grid" x1="64" y1="213.00" x2="1168" y2="213.00"/>
 <line class="grid" x1="64" y1="154.00" x2="1168" y2="154.00"/>
@@ -37,14 +37,16 @@
 <text class="tlabel" x="54" y="99.00" text-anchor="end">8925</text>
 <text class="tlabel" x="54" y="40.00" text-anchor="end">11900</text>
 <line class="axis" x1="64" y1="272" x2="1168" y2="272"/>
-<path class="area" d="M 64.00 272.00 L 64.00 51.23 L 432.00 50.46 L 800.00 49.49 L 1168.00 48.43 L 1168.00 272.00 Z"/>
-<path class="line" d="M 64.00 51.23 L 432.00 50.46 L 800.00 49.49 L 1168.00 48.43"/>
+<path class="area" d="M 64.00 272.00 L 64.00 51.23 L 340.00 50.46 L 616.00 49.49 L 892.00 48.43 L 1168.00 47.30 L 1168.00 272.00 Z"/>
+<path class="line" d="M 64.00 51.23 L 340.00 50.46 L 616.00 49.49 L 892.00 48.43 L 1168.00 47.30"/>
 <circle class="dot" cx="64.00" cy="51.23" r="2.5"/>
-<circle class="dot" cx="432.00" cy="50.46" r="2.5"/>
-<circle class="dot" cx="800.00" cy="49.49" r="2.5"/>
-<circle class="dot" cx="1168.00" cy="48.43" r="2.5"/>
+<circle class="dot" cx="340.00" cy="50.46" r="2.5"/>
+<circle class="dot" cx="616.00" cy="49.49" r="2.5"/>
+<circle class="dot" cx="892.00" cy="48.43" r="2.5"/>
+<circle class="dot" cx="1168.00" cy="47.30" r="2.5"/>
 <text class="tlabel" x="64.00" y="294" text-anchor="middle">2026-11-12</text>
-<text class="tlabel" x="432.00" y="294" text-anchor="middle">11-13</text>
-<text class="tlabel" x="800.00" y="294" text-anchor="middle">11-14</text>
-<text class="tlabel" x="1168.00" y="294" text-anchor="middle">2026-11-15</text>
+<text class="tlabel" x="340.00" y="294" text-anchor="middle">11-13</text>
+<text class="tlabel" x="616.00" y="294" text-anchor="middle">11-14</text>
+<text class="tlabel" x="892.00" y="294" text-anchor="middle">11-15</text>
+<text class="tlabel" x="1168.00" y="294" text-anchor="middle">2026-11-16</text>
 </svg>
