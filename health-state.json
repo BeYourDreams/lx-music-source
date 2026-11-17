@@ -57,8 +57,8 @@
       "last_status": "异常"
     },
     "api.chksz.top": {
-      "consecutive_failures": 0,
-      "last_status": "可用"
+      "consecutive_failures": 1,
+      "last_status": "异常"
     },
     "api.huibq.com": {
       "consecutive_failures": 2,
@@ -78,7 +78,7 @@
     },
     "api.music.lerd.dpdns.org": {
       "consecutive_failures": 0,
-      "last_status": "异常"
+      "last_status": "可用"
     },
     "api.nki.pw": {
       "consecutive_failures": 0,
@@ -169,8 +169,8 @@
       "last_status": "可用"
     },
     "ghproxy.net": {
-      "consecutive_failures": 1,
-      "last_status": "异常"
+      "consecutive_failures": 0,
+      "last_status": "可用"
     },
     "github.com": {
       "consecutive_failures": 0,
@@ -254,7 +254,7 @@
     },
     "oiapi.net": {
       "consecutive_failures": 0,
-      "last_status": "异常"
+      "last_status": "可用"
     },
     "proxy.qishui.vsaa.cn": {
       "consecutive_failures": 2,
@@ -346,7 +346,7 @@
     "hyw": "可用",
     "ikun": "失效",
     "jiexiang": "可用",
-    "juhe": "异常",
+    "juhe": "可用",
     "lx": "可用",
     "qdy": "可用",
     "qingliang": "可用",
@@ -354,5 +354,5 @@
     "xinghai": "可用",
     "xinglan": "可用"
   },
-  "updated_at": "2026-11-16 05:32"
+  "updated_at": "2026-11-17 08:41"
 }
