@@ -9,7 +9,7 @@
       "last_status": "可用"
     },
     "13413.kstore.vip": {
-      "consecutive_failures": 0,
+      "consecutive_failures": 1,
       "last_status": "异常"
     },
     "175.27.166.236": {
@@ -17,8 +17,8 @@
       "last_status": "异常"
     },
     "88.lxmusic.xn--fiqs8s": {
-      "consecutive_failures": 1,
-      "last_status": "异常"
+      "consecutive_failures": 0,
+      "last_status": "可用"
     },
     "97.64.37.235": {
       "consecutive_failures": 0,
@@ -78,11 +78,11 @@
     },
     "api.music.lerd.dpdns.org": {
       "consecutive_failures": 0,
-      "last_status": "异常"
+      "last_status": "可用"
     },
     "api.nki.pw": {
-      "consecutive_failures": 1,
-      "last_status": "异常"
+      "consecutive_failures": 0,
+      "last_status": "可用"
     },
     "api.qishui.com": {
       "consecutive_failures": 0,
@@ -114,7 +114,7 @@
     },
     "api.yaohud.cn": {
       "consecutive_failures": 0,
-      "last_status": "异常"
+      "last_status": "可用"
     },
     "api.ygking.cn": {
       "consecutive_failures": 2,
@@ -129,8 +129,8 @@
       "last_status": "可用"
     },
     "app.c.nf.migu.cn": {
-      "consecutive_failures": 1,
-      "last_status": "异常"
+      "consecutive_failures": 0,
+      "last_status": "可用"
     },
     "c.wwwweb.top": {
       "consecutive_failures": 0,
@@ -229,8 +229,8 @@
       "last_status": "可用"
     },
     "music.migu.cn": {
-      "consecutive_failures": 1,
-      "last_status": "异常"
+      "consecutive_failures": 0,
+      "last_status": "可用"
     },
     "music.nxinxz.com": {
       "consecutive_failures": 0,
@@ -285,8 +285,8 @@
       "last_status": "可用"
     },
     "tang.api.s01s.cn": {
-      "consecutive_failures": 1,
-      "last_status": "异常"
+      "consecutive_failures": 2,
+      "last_status": "失效"
     },
     "u.y.qq.com": {
       "consecutive_failures": 0,
@@ -346,13 +346,13 @@
     "hyw": "可用",
     "ikun": "失效",
     "jiexiang": "可用",
-    "juhe": "异常",
-    "lx": "异常",
+    "juhe": "可用",
+    "lx": "可用",
     "qdy": "可用",
     "qingliang": "可用",
     "suyin": "可用",
     "xinghai": "可用",
     "xinglan": "可用"
   },
-  "updated_at": "2026-11-24 11:12"
+  "updated_at": "2026-11-25 09:17"
 }
